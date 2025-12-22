@@ -8,8 +8,10 @@ const connectDB = async () => {
     });
 
     console.log(`MongoDB Connected: ${conn.connection.host}`);
+    console.log(`Database: ${conn.connection.name}`);
   } catch (error) {
     console.error(`Error: ${error.message}`);
+    console.error('Failed to connect to MongoDB. Please check your MONGO_URI in .env file');
     process.exit(1);
   }
 };
