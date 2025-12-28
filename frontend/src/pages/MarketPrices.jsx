@@ -3,9 +3,9 @@ import { TrendingUp, TrendingDown, Minus, ChevronRight, Calendar, MapPin } from 
 import { toast } from 'react-toastify';
 import { getCurrentPrices, getActiveDistricts } from '../services/marketPriceService';
 import { BANGLADESH_DISTRICTS, CROP_CATEGORIES, formatPrice, formatDate, getDaysSinceUpdate } from '../utils/bangladeshData';
-import Card from '../components/Card';
-import Select from '../components/Select';
-import Loading from '../components/Loading';
+import { Card } from '../components/Card';
+import { Select } from '../components/Select';
+import { Loading } from '../components/Loading';
 import PriceHistoryChart from '../components/charts/PriceHistoryChart';
 
 const MarketPrices = () => {

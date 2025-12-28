@@ -206,8 +206,6 @@ const getMyListings = asyncHandler(async (req, res) => {
   });
 });
 
-<<<<<<< HEAD
-=======
 // @desc    Calculate fair price for product
 // @route   POST /api/products/calculate-fair-price
 // @access  Public
@@ -251,17 +249,60 @@ const calculateFairPrice = asyncHandler(async (req, res) => {
   });
 });
 
->>>>>>> b4da24f (New import of project files)
+// @desc    Get farmer dashboard stats
+// @route   GET /api/products/stats/farmer
+// @access  Private (Farmer only)
+const getFarmerStats = asyncHandler(async (req, res) => {
+  const farmerId = req.user._id;
+
+  // Get active listings count (approved products)
+  const activeListings = await Product.countDocuments({
+    farmer: farmerId,
+    status: 'approved'
+  });
+
+  // Get pending listings count
+  const pendingListings = await Product.countDocuments({
+    farmer: farmerId,
+    status: 'pending'
+  });
+
+  // Get total orders from Order model (you'll need to import Order model)
+  const Order = require('../models/Order');
+  const orders = await Order.find({
+    'product.farmer': farmerId
+  });
+
+  const totalOrders = orders.length;
+
+  // Calculate total earnings from completed orders
+  const completedOrders = await Order.find({
+    'product.farmer': farmerId,
+    status: 'delivered'
+  });
+
+  const totalEarnings = completedOrders.reduce((sum, order) => {
+    return sum + (order.totalAmount || 0);
+  }, 0);
+
+  res.json({
+    success: true,
+    data: {
+      activeListings,
+      pendingListings,
+      totalOrders,
+      totalEarnings
+    }
+  });
+});
+
 module.exports = {
   createProduct,
   getProducts,
   getProduct,
   updateProduct,
   deleteProduct,
-<<<<<<< HEAD
-  getMyListings
-=======
   getMyListings,
-  calculateFairPrice
->>>>>>> b4da24f (New import of project files)
+  calculateFairPrice,
+  getFarmerStats
 };
