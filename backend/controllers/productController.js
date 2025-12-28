@@ -1,5 +1,6 @@
 const asyncHandler = require('express-async-handler');
 const Product = require('../models/Product');
+const { notifyPriceChange } = require('../utils/notificationService');
 
 // @desc    Create new product listing
 // @route   POST /api/products
@@ -156,10 +157,25 @@ const updateProduct = asyncHandler(async (req, res) => {
     updateData.status = 'pending';
   }
 
+  // Track price change for notifications
+  const oldPrice = product.sellingPrice;
+  const newPrice = updateData.sellingPrice;
+
   product = await Product.findByIdAndUpdate(req.params.id, updateData, {
     new: true,
     runValidators: true
   });
+
+  // Send price change notification if price was updated
+  if (oldPrice && newPrice && oldPrice !== newPrice) {
+    await notifyPriceChange(
+      product._id,
+      oldPrice,
+      newPrice,
+      product.cropName,
+      req.user._id
+    );
+  }
 
   res.json({
     success: true,

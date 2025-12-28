@@ -197,13 +197,13 @@ export default function MyListings() {
               </Link>
               {listing.status !== 'sold' && (
                 <>
-                  <Link
-                    to={`/farmer/listings/edit/${listing._id}`}
-                    className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary-100 hover:bg-primary-200 text-primary-700 rounded-lg transition text-sm font-medium"
-                  >
-                    <Edit className="w-4 h-4" />
-                    Edit
-                  </Link>
+              <Link
+                to={`/farmer/edit-listing/${listing._id}`}
+                className="flex-1 flex items-center justify-center gap-2 px-3 py-2 bg-primary-100 hover:bg-primary-200 text-primary-700 rounded-lg transition text-sm font-medium"
+              >
+                <Edit className="w-4 h-4" />
+                Edit
+              </Link>
                   <button
                     onClick={() => handleDelete(listing._id, listing.cropName)}
                     className="flex items-center justify-center gap-2 px-3 py-2 bg-red-100 hover:bg-red-200 text-red-700 rounded-lg transition text-sm font-medium"
@@ -295,7 +295,7 @@ export default function MyListings() {
                 {listing.status !== 'sold' && (
                   <>
                     <Link
-                      to={`/farmer/listings/edit/${listing._id}`}
+                      to={`/farmer/edit-listing/${listing._id}`}
                       className="flex items-center gap-2 px-4 py-2 bg-primary-100 hover:bg-primary-200 text-primary-700 rounded-lg transition text-sm font-medium"
                     >
                       <Edit className="w-4 h-4" />

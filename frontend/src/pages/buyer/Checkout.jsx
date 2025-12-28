@@ -1,4 +1,4 @@
-import React, { useContext, useState, useEffect, useRef } from 'react';
+import React, { useContext, useState, useEffect, useRef, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { CartContext } from '../../context/CartContext';
 import { useAuth } from '../../context/AuthContext';
@@ -14,6 +14,8 @@ const Checkout = () => {
   const { user } = useAuth();
   const mapRef = useRef(null);
   const mapInstanceRef = useRef(null);
+  const markerRef = useRef(null);
+  const geocoderRef = useRef(null);
 
   const [checkoutLoading, setCheckoutLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -45,16 +47,34 @@ const Checkout = () => {
   // Initialize Google Map - safer detached DOM approach
   const initializeMap = () => {
     // Guard: Only initialize if map container exists and Google Maps is ready
-    if (!mapRef.current || mapInstanceRef.current) {
+    if (!mapRef.current) {
+      console.warn('Map container not found');
+      return;
+    }
+
+    if (mapInstanceRef.current) {
+      console.log('Map already initialized');
       return;
     }
 
     // Check if Google Maps API is available
     if (!window.google?.maps) {
-      // Schedule retry after short delay
+      console.log('Google Maps API not loaded yet, retrying...');
+      // Retry with exponential backoff, max 5 seconds
+      const retryCount = (initializeMap._retryCount || 0) + 1;
+      if (retryCount > 10) {
+        console.error('Google Maps API failed to load after 10 retries');
+        setMapLoading(false);
+        setError('Failed to load Google Maps. Please check your API key configuration.');
+        return;
+      }
+      initializeMap._retryCount = retryCount;
       setTimeout(initializeMap, 500);
       return;
     }
+
+    // Reset retry count on success
+    initializeMap._retryCount = 0;
 
     try {
       // Default center (Dhaka, Bangladesh)
@@ -83,29 +103,41 @@ const Checkout = () => {
       // Setup map functionality
       setupMapListeners(map);
       setMapLoading(false);
+      console.log('Map initialized successfully');
     } catch (error) {
       console.error('Error initializing map:', error);
       setMapLoading(false);
+      setError(`Map initialization failed: ${error.message}. Please check your Google Maps API key.`);
     }
   };
 
   // Setup map click and marker listeners
   const setupMapListeners = (map) => {
-    let marker = null;
-    const geocoder = new window.google.maps.Geocoder();
+    // Clean up existing marker if any
+    if (markerRef.current) {
+      markerRef.current.setMap(null);
+      markerRef.current = null;
+    }
+
+    // Create geocoder instance
+    if (!geocoderRef.current) {
+      geocoderRef.current = new window.google.maps.Geocoder();
+    }
 
     // Click handler for pinning location
     const clickListener = map.addListener('click', (event) => {
       const lat = event.latLng.lat();
       const lng = event.latLng.lng();
 
-      // Remove old marker
-      if (marker) {
-        marker.setMap(null);
+      // Remove old marker and its listeners
+      if (markerRef.current) {
+        window.google.maps.event.clearInstanceListeners(markerRef.current);
+        markerRef.current.setMap(null);
+        markerRef.current = null;
       }
 
       // Add new marker
-      marker = new window.google.maps.Marker({
+      const marker = new window.google.maps.Marker({
         position: { lat, lng },
         map: map,
         draggable: true,
@@ -113,15 +145,29 @@ const Checkout = () => {
         title: 'Delivery Location'
       });
 
+      markerRef.current = marker;
+
       // Center map on marker
       map.panTo({ lat, lng });
 
       // Get address from coordinates
-      updateAddressFromCoordinates(geocoder, lat, lng, marker);
+      updateAddressFromCoordinates(geocoderRef.current, lat, lng, marker);
+
+      // Setup drag listener
+      const dragListener = marker.addListener('dragend', () => {
+        if (markerRef.current) {
+          const newLat = markerRef.current.getPosition().lat();
+          const newLng = markerRef.current.getPosition().lng();
+          updateAddressFromCoordinates(geocoderRef.current, newLat, newLng, markerRef.current);
+        }
+      });
+
+      // Store drag listener for cleanup
+      marker._dragListener = dragListener;
     });
 
-    // Store listener for cleanup
-    mapInstanceRef.current._clickListener = clickListener;
+    // Store click listener for cleanup
+    map._clickListener = clickListener;
   };
 
   // Update address from geocoding
@@ -153,15 +199,6 @@ const Checkout = () => {
         });
 
         toast.success('Location pinned successfully! 📍');
-
-        // Setup drag listener
-        if (marker) {
-          marker.addListener('dragend', () => {
-            const newLat = marker.getPosition().lat();
-            const newLng = marker.getPosition().lng();
-            updateAddressFromCoordinates(geocoder, newLat, newLng, marker);
-          });
-        }
       }
     });
   };
@@ -330,30 +367,76 @@ const Checkout = () => {
     fetchSavedAddresses();
   }, []);
 
-  // Initialize Google Map when delivery method changes
-  useEffect(() => {
-    if (deliveryMethod === 'map') {
-      // Small delay to ensure DOM is ready
-      const timer = setTimeout(() => {
-        initializeMap();
-      }, 100);
-      return () => clearTimeout(timer);
-    } else {
-      // Clean up map instance when switching away
+  // Cleanup function for map - wrapped in useCallback for stability
+  const cleanupMap = useCallback(() => {
+    try {
+      // Clean up marker and its listeners
+      if (markerRef.current) {
+        try {
+          if (markerRef.current._dragListener) {
+            window.google.maps.event.removeListener(markerRef.current._dragListener);
+          }
+          window.google.maps.event.clearInstanceListeners(markerRef.current);
+          markerRef.current.setMap(null);
+        } catch (e) {
+          // Marker might already be removed - ignore
+        }
+        markerRef.current = null;
+      }
+
+      // Clean up map instance and its listeners
       if (mapInstanceRef.current) {
         try {
           // Remove click listener if it exists
           if (mapInstanceRef.current._clickListener) {
             window.google.maps.event.removeListener(mapInstanceRef.current._clickListener);
           }
-          // Clear the reference
-          mapInstanceRef.current = null;
+          // Clear all map listeners
+          window.google.maps.event.clearInstanceListeners(mapInstanceRef.current);
         } catch (e) {
-          console.warn('Error cleaning up map:', e);
+          // Ignore errors during cleanup
         }
+        mapInstanceRef.current = null;
       }
+
+      // Reset geocoder
+      geocoderRef.current = null;
+    } catch (e) {
+      // Ignore cleanup errors
     }
-  }, [deliveryMethod]);
+  }, []);
+
+  // Initialize Google Map when delivery method changes
+  useEffect(() => {
+    if (deliveryMethod === 'map') {
+      // Reset map loading state
+      setMapLoading(true);
+      // Reset map instance ref to allow re-initialization
+      mapInstanceRef.current = null;
+      // Small delay to ensure DOM is ready
+      const timer = setTimeout(() => {
+        initializeMap();
+      }, 100);
+      return () => {
+        clearTimeout(timer);
+        // Cleanup must happen synchronously before React unmounts
+        cleanupMap();
+      };
+    } else {
+      // Clean up map instance when switching away
+      cleanupMap();
+      // Reset refs
+      mapInstanceRef.current = null;
+      markerRef.current = null;
+    }
+  }, [deliveryMethod, cleanupMap]);
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      cleanupMap();
+    };
+  }, [cleanupMap]);
 
   if (cart.items.length === 0) {
     return (
@@ -529,18 +612,47 @@ const Checkout = () => {
                 {deliveryMethod === 'map' && (
                   <div className="space-y-4">
                     <div 
-                      ref={mapRef}
                       className="border rounded-lg overflow-hidden h-96 bg-gray-200 relative shadow-md"
-                      style={{ WebkitTouchCallout: 'none' }}
+                      style={{ WebkitTouchCallout: 'none', position: 'relative' }}
                     >
-                      {mapLoading && (
-                        <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-75 z-10 pointer-events-none">
-                          <div className="text-center">
-                            <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-2"></div>
-                            <p className="text-gray-700 font-medium">Loading Map...</p>
+                      <div 
+                        ref={mapRef}
+                        className="w-full h-full"
+                        style={{ minHeight: '384px' }}
+                      >
+                        {mapLoading && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-white bg-opacity-90 z-10">
+                            <div className="text-center">
+                              <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-green-600 mx-auto mb-2"></div>
+                              <p className="text-gray-700 font-medium">Loading Map...</p>
+                              <p className="text-gray-500 text-sm mt-2">Initializing Google Maps...</p>
+                            </div>
                           </div>
-                        </div>
-                      )}
+                        )}
+                        {!mapLoading && !mapInstanceRef.current && (
+                          <div className="absolute inset-0 flex items-center justify-center bg-yellow-50 z-10">
+                            <div className="text-center p-4">
+                              <p className="text-yellow-800 font-medium mb-2">⚠️ Map Failed to Load</p>
+                              <p className="text-yellow-700 text-sm mb-4">
+                                Please check your Google Maps API key in <code className="bg-yellow-100 px-2 py-1 rounded">frontend/index.html</code>
+                              </p>
+                              <p className="text-yellow-600 text-xs mb-4">
+                                Current key: <code className="bg-yellow-100 px-1 py-0.5 rounded">AIzaSyDemoKeyForDevelopment</code> (Demo - Not Valid)
+                              </p>
+                              <button
+                                onClick={() => {
+                                  mapInstanceRef.current = null;
+                                  setMapLoading(true);
+                                  initializeMap();
+                                }}
+                                className="px-4 py-2 bg-yellow-600 text-white rounded hover:bg-yellow-700 text-sm"
+                              >
+                                Retry
+                              </button>
+                            </div>
+                          </div>
+                        )}
+                      </div>
                     </div>
                     <p className="text-sm text-blue-900 mb-3 font-semibold">
                       📍 Click on the map to pin your delivery location. You can drag the marker to adjust.

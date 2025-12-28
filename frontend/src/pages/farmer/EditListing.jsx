@@ -49,8 +49,10 @@ export default function EditListing() {
   ];
 
   useEffect(() => {
-    fetchListing();
-  }, [id]);
+    if (user && id) {
+      fetchListing();
+    }
+  }, [id, user]);
 
   const fetchListing = async () => {
     try {
@@ -58,13 +60,16 @@ export default function EditListing() {
       const response = await getProduct(id);
       const listing = response.data;
 
-      // Check if user owns this listing
-      if (listing.farmer._id !== user._id && user.role !== 'admin') {
+      // Check if user owns this listing (handle both _id and id properties, and string conversion)
+      const farmerId = String(listing.farmer._id || listing.farmer.id || listing.farmer);
+      const userId = String(user?._id || user?.id || '');
+      
+      if (farmerId !== userId && user?.role !== 'admin') {
         toast.error('You are not authorized to edit this listing');
-        navigate('/farmer/listings');
+        navigate('/farmer/my-listings');
         return;
       }
-
+      
       // Populate form data
       setFormData({
         cropName: listing.cropName || '',
@@ -86,7 +91,7 @@ export default function EditListing() {
     } catch (error) {
       console.error('Error fetching listing:', error);
       toast.error('Failed to load listing');
-      navigate('/farmer/listings');
+      navigate('/farmer/my-listings');
     } finally {
       setLoading(false);
     }
@@ -206,7 +211,7 @@ export default function EditListing() {
 
       await updateProduct(id, formDataToSend);
       toast.success('Listing updated successfully!');
-      navigate('/farmer/listings');
+      navigate('/farmer/my-listings');
     } catch (error) {
       console.error('Error updating listing:', error);
       toast.error(error.response?.data?.message || 'Failed to update listing');
@@ -225,7 +230,7 @@ export default function EditListing() {
         {/* Header */}
         <div className="mb-8">
           <button
-            onClick={() => navigate('/farmer/listings')}
+            onClick={() => navigate('/farmer/my-listings')}
             className="flex items-center gap-2 text-gray-600 hover:text-gray-900 mb-4 transition"
           >
             <ArrowLeft className="w-5 h-5" />
@@ -509,7 +514,7 @@ export default function EditListing() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => navigate('/farmer/listings')}
+                onClick={() => navigate('/farmer/my-listings')}
                 className="flex-1"
               >
                 Cancel

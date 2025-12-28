@@ -3,6 +3,8 @@ import { Link, useParams } from 'react-router-dom';
 import { useAuth } from '../../context/AuthContext';
 import { ShoppingCart, MapPin, Truck, Clock, Star, AlertCircle, CheckCircle, XCircle, Package } from 'lucide-react';
 import api from '../../services/api';
+import ReviewForm from '../../components/ReviewForm';
+import { canReviewOrder } from '../../services/reviewService';
 
 const MyOrders = () => {
   const { user } = useAuth();
@@ -13,11 +15,8 @@ const MyOrders = () => {
   const [error, setError] = useState(null);
   const [filterStatus, setFilterStatus] = useState(statusFilter || 'all');
   const [selectedOrder, setSelectedOrder] = useState(null);
-  const [ratingOrder, setRatingOrder] = useState(null);
-  const [rating, setRating] = useState(5);
-  const [review, setReview] = useState('');
-  const [ratingType, setRatingType] = useState('farmer');
-  const [submittingRating, setSubmittingRating] = useState(false);
+  const [reviewingOrder, setReviewingOrder] = useState(null);
+  const [orderReviewStatus, setOrderReviewStatus] = useState({});
   const [cancellingOrder, setCancellingOrder] = useState(null);
   const [cancelReason, setCancelReason] = useState('');
 
@@ -32,7 +31,28 @@ const MyOrders = () => {
         }
         
         const response = await api.get('/orders/buyer', { params });
-        setOrders(response.data || []);
+        const ordersData = response.data || [];
+        setOrders(ordersData);
+        
+        // Check review status for completed orders
+        const reviewStatusPromises = ordersData
+          .filter(order => order.orderStatus === 'completed')
+          .map(async (order) => {
+            try {
+              const reviewStatus = await canReviewOrder(order._id);
+              return { orderId: order._id, ...reviewStatus.data };
+            } catch (error) {
+              return { orderId: order._id, canReview: false, hasReviewed: false };
+            }
+          });
+        
+        const reviewStatuses = await Promise.all(reviewStatusPromises);
+        const statusMap = {};
+        reviewStatuses.forEach(status => {
+          statusMap[status.orderId] = status;
+        });
+        setOrderReviewStatus(statusMap);
+        
         setError(null);
       } catch (err) {
         setError(err.response?.data?.message || 'Failed to fetch orders');
@@ -73,37 +93,6 @@ const MyOrders = () => {
     }
   };
 
-  // Handle rating submission
-  const handleSubmitRating = async (orderId) => {
-    if (rating < 1 || rating > 5) {
-      alert('Please select a rating');
-      return;
-    }
-
-    try {
-      setSubmittingRating(true);
-      const response = await api.put(`/orders/${orderId}/rate`, {
-        rating,
-        review,
-        rateType
-      });
-
-      if (response.success) {
-        // Update orders list
-        setOrders(orders.map(order =>
-          order._id === orderId ? response.data : order
-        ));
-        setRatingOrder(null);
-        setReview('');
-        setRating(5);
-        alert('Rating submitted successfully');
-      }
-    } catch (err) {
-      alert(err.response?.data?.message || 'Failed to submit rating');
-    } finally {
-      setSubmittingRating(false);
-    }
-  };
 
   // Get status color
   const getStatusColor = (status) => {
@@ -296,30 +285,21 @@ const MyOrders = () => {
                     </button>
                   )}
 
-                  {order.orderStatus === 'completed' && !order.farmerRating && (
+                  {order.orderStatus === 'completed' && orderReviewStatus[order._id]?.canReview && (
                     <button
-                      onClick={() => {
-                        setRatingOrder(order._id);
-                        setRatingType('farmer');
-                      }}
-                      className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm font-medium flex items-center gap-2"
+                      onClick={() => setReviewingOrder(order)}
+                      className="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 text-sm font-medium flex items-center gap-2"
                     >
                       <Star size={16} />
-                      Rate Farmer
+                      Write Review
                     </button>
                   )}
 
-                  {order.orderStatus === 'completed' && order.transporter && !order.transporterRating && (
-                    <button
-                      onClick={() => {
-                        setRatingOrder(order._id);
-                        setRatingType('transporter');
-                      }}
-                      className="px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 text-sm font-medium flex items-center gap-2"
-                    >
-                      <Star size={16} />
-                      Rate Delivery
-                    </button>
+                  {order.orderStatus === 'completed' && orderReviewStatus[order._id]?.hasReviewed && (
+                    <span className="px-4 py-2 bg-gray-200 text-gray-700 rounded-lg text-sm font-medium flex items-center gap-2">
+                      <CheckCircle size={16} />
+                      Reviewed
+                    </span>
                   )}
                 </div>
 
@@ -419,66 +399,51 @@ const MyOrders = () => {
         </div>
       )}
 
-      {/* Rating Modal */}
-      {ratingOrder && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
-          <div className="bg-white rounded-lg shadow-xl p-6 w-full max-w-sm mx-4">
-            <h2 className="text-xl font-bold mb-4">
-              Rate {ratingType === 'farmer' ? 'Farmer' : 'Delivery'}
-            </h2>
-
-            {/* Star Rating */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Rating</label>
-              <div className="flex gap-2 text-4xl">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    onClick={() => setRating(star)}
-                    className="cursor-pointer"
-                  >
-                    <Star
-                      size={32}
-                      className={star <= rating ? 'fill-yellow-400 text-yellow-400' : 'text-gray-300'}
-                    />
-                  </button>
-                ))}
-              </div>
-            </div>
-
-            {/* Review */}
-            <div className="mb-4">
-              <label className="block text-sm font-medium mb-2">Review (Optional)</label>
-              <textarea
-                value={review}
-                onChange={(e) => setReview(e.target.value)}
-                placeholder="Share your experience..."
-                className="w-full p-2 border rounded-lg h-20"
-              />
-            </div>
-
-            {/* Buttons */}
-            <div className="flex gap-3">
-              <button
-                onClick={() => {
-                  setRatingOrder(null);
-                  setReview('');
-                  setRating(5);
-                }}
-                className="flex-1 px-4 py-2 border border-gray-300 rounded-lg hover:bg-gray-50"
-              >
-                Cancel
-              </button>
-              <button
-                onClick={() => handleSubmitRating(ratingOrder)}
-                disabled={submittingRating}
-                className="flex-1 px-4 py-2 bg-yellow-600 text-white rounded-lg hover:bg-yellow-700 disabled:bg-gray-400"
-              >
-                {submittingRating ? 'Submitting...' : 'Submit Rating'}
-              </button>
-            </div>
-          </div>
-        </div>
+      {/* Review Form Modal */}
+      {reviewingOrder && (
+        <ReviewForm
+          order={reviewingOrder}
+          onClose={() => {
+            setReviewingOrder(null);
+            // Refresh orders to update review status
+            const fetchOrders = async () => {
+              try {
+                const params = {};
+                if (filterStatus !== 'all') {
+                  params.status = filterStatus;
+                }
+                const response = await api.get('/orders/buyer', { params });
+                const ordersData = response.data || [];
+                setOrders(ordersData);
+                
+                // Update review status
+                const reviewStatusPromises = ordersData
+                  .filter(order => order.orderStatus === 'completed')
+                  .map(async (order) => {
+                    try {
+                      const reviewStatus = await canReviewOrder(order._id);
+                      return { orderId: order._id, ...reviewStatus.data };
+                    } catch (error) {
+                      return { orderId: order._id, canReview: false, hasReviewed: false };
+                    }
+                  });
+                
+                const reviewStatuses = await Promise.all(reviewStatusPromises);
+                const statusMap = {};
+                reviewStatuses.forEach(status => {
+                  statusMap[status.orderId] = status;
+                });
+                setOrderReviewStatus(statusMap);
+              } catch (err) {
+                console.error('Error refreshing orders:', err);
+              }
+            };
+            fetchOrders();
+          }}
+          onSuccess={() => {
+            setReviewingOrder(null);
+          }}
+        />
       )}
     </div>
   );

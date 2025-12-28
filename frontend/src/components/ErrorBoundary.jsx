@@ -7,10 +7,21 @@ class ErrorBoundary extends React.Component {
   }
 
   static getDerivedStateFromError(error) {
+    // Don't show error UI for Google Maps DOM conflicts - these are recoverable
+    if (error?.message?.includes('removeChild') || error?.name === 'NotFoundError') {
+      console.warn('Google Maps DOM conflict detected, recovering silently...', error);
+      return { hasError: false, error: null };
+    }
     return { hasError: true, error };
   }
 
   componentDidCatch(error, errorInfo) {
+    // Check if this is a DOM manipulation error from Google Maps
+    if (error?.message?.includes('removeChild') || error?.name === 'NotFoundError') {
+      console.warn('Google Maps DOM conflict detected, recovering...', error);
+      // Don't log as error, just recover
+      return;
+    }
     console.error('Error caught by boundary:', error, errorInfo);
   }
 

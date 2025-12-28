@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { CartContext } from '../context/CartContext';
 import { LogOut, User, Menu, X, ShoppingCart, Package } from 'lucide-react';
 import { useState, useContext } from 'react';
+import NotificationCenter from './NotificationCenter';
 
 export const Navbar = () => {
   const { user, logout, isAuthenticated } = useAuth();
@@ -49,6 +50,7 @@ export const Navbar = () => {
                     </Link>
                   </>
                 )}
+                <NotificationCenter />
                 <Link to="/profile" className="hover:bg-primary-700 px-3 py-2 rounded-md flex items-center">
                   <User className="w-4 h-4 mr-1" />
                   {user?.name}

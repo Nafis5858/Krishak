@@ -4,6 +4,7 @@ const Cart = require('../models/Cart');
 const Product = require('../models/Product');
 const User = require('../models/User');
 const DeliverySlot = require('../models/DeliverySlot');
+const { notifyOrderPlaced, notifyOrderStatusUpdate } = require('../utils/notificationService');
 
 // @desc    Create order(s) from cart items
 // @route   POST /api/orders
@@ -141,7 +142,14 @@ const createOrder = asyncHandler(async (req, res) => {
       );
     }
 
-    createdOrders.push(await order.populate('farmer', 'name phone avatar'));
+    // Populate order with product and farmer before sending notifications
+    await order.populate('farmer', 'name phone avatar');
+    await order.populate('product', 'cropName');
+    
+    createdOrders.push(order);
+
+    // Send notifications for order placed
+    await notifyOrderPlaced(order);
   }
 
   // Clear cart after successful order creation
@@ -271,6 +279,13 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
   }
 
   await order.save();
+
+  // Populate order with buyer and farmer before sending notifications
+  await order.populate('buyer', 'name');
+  await order.populate('farmer', 'name');
+
+  // Send notifications for status update
+  await notifyOrderStatusUpdate(order, status);
 
   res.json({
     success: true,

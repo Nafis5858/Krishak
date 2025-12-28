@@ -1,0 +1,35 @@
+### Get my notifications
+GET http://localhost:5000/api/notifications/my/all
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### Get unread count
+GET http://localhost:5000/api/notifications/my/unread-count
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### Mark single notification as read
+PUT http://localhost:5000/api/notifications/NOTIFICATION_ID_HERE/read
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### Mark multiple notifications as read
+PUT http://localhost:5000/api/notifications/mark-multiple/read
+Authorization: Bearer YOUR_TOKEN_HERE
+Content-Type: application/json
+
+{
+  "notificationIds": ["ID1", "ID2", "ID3"]
+}
+
+### Mark all notifications as read
+PUT http://localhost:5000/api/notifications/mark-all/read
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### Delete a notification
+DELETE http://localhost:5000/api/notifications/NOTIFICATION_ID_HERE
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### Delete all notifications
+DELETE http://localhost:5000/api/notifications/all/notifications
+Authorization: Bearer YOUR_TOKEN_HERE
+
+### Get user notifications (public)
+GET http://localhost:5000/api/notifications/user/USER_ID_HERE

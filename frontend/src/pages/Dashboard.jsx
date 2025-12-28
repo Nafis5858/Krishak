@@ -12,11 +12,18 @@ export const Dashboard = () => {
     totalSpent: 0,
     pendingOrders: 0
   });
+  const [farmerStats, setFarmerStats] = useState({
+    activeListings: 0,
+    totalOrders: 0,
+    totalEarnings: 0
+  });
 
-  // Fetch buyer statistics on component mount
+  // Fetch statistics on component mount
   useEffect(() => {
     if (user?.role === 'buyer') {
       fetchBuyerStats();
+    } else if (user?.role === 'farmer') {
+      fetchFarmerStats();
     }
   }, [user]);
 
@@ -44,6 +51,48 @@ export const Dashboard = () => {
     }
   };
 
+  const fetchFarmerStats = async () => {
+    try {
+      // Fetch farmer's products and orders in parallel
+      const [productsResponse, ordersResponse] = await Promise.all([
+        api.get('/products/my-listings'),
+        api.get('/orders/farmer')
+      ]);
+
+      // Calculate active listings (products with status='approved')
+      if (productsResponse.success && productsResponse.data) {
+        const products = productsResponse.data;
+        const activeListings = products.filter(product => product.status === 'approved').length;
+        
+        // Calculate total orders and earnings
+        let totalOrders = 0;
+        let totalEarnings = 0;
+        
+        if (ordersResponse.success && ordersResponse.data) {
+          const orders = ordersResponse.data;
+          totalOrders = orders.length;
+          // Calculate earnings from completed/confirmed orders (95% to farmer)
+          totalEarnings = orders
+            .filter(order => order.orderStatus === 'confirmed' || order.orderStatus === 'completed')
+            .reduce((sum, order) => {
+              // Use priceBreakdown.farmerEarnings if available, otherwise 95% of totalPrice
+              const earnings = order.priceBreakdown?.farmerEarnings || (order.totalPrice * 0.95);
+              return sum + (earnings || 0);
+            }, 0);
+        }
+        
+        setFarmerStats({
+          activeListings,
+          totalOrders,
+          totalEarnings
+        });
+      }
+    } catch (err) {
+      console.error('Error fetching farmer stats:', err);
+      // Keep default values if API fails
+    }
+  };
+
   const getDashboardContent = () => {
     switch (user?.role) {
       case 'farmer':
@@ -51,15 +100,15 @@ export const Dashboard = () => {
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card className="text-center">
-                <h3 className="text-4xl font-bold text-primary-600">0</h3>
+                <h3 className="text-4xl font-bold text-primary-600">{farmerStats.activeListings}</h3>
                 <p className="text-gray-600 mt-2">Active Listings</p>
               </Card>
               <Card className="text-center">
-                <h3 className="text-4xl font-bold text-primary-600">0</h3>
+                <h3 className="text-4xl font-bold text-primary-600">{farmerStats.totalOrders}</h3>
                 <p className="text-gray-600 mt-2">Total Orders</p>
               </Card>
               <Card className="text-center">
-                <h3 className="text-4xl font-bold text-primary-600">৳0</h3>
+                <h3 className="text-4xl font-bold text-primary-600">৳{farmerStats.totalEarnings.toFixed(2)}</h3>
                 <p className="text-gray-600 mt-2">Total Earnings</p>
               </Card>
             </div>
