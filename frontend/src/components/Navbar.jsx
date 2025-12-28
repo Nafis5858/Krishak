@@ -7,10 +7,11 @@ import NotificationCenter from './NotificationCenter';
 
 export const Navbar = () => {
   const { user, logout, isAuthenticated } = useAuth();
-  const { getCartItemCount } = useContext(CartContext) || { getCartItemCount: () => 0 };
+  const { cart } = useContext(CartContext);
   const navigate = useNavigate();
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
-  const cartCount = getCartItemCount();
+  
+  const cartCount = cart?.items?.length || 0;
 
   const handleLogout = () => {
     logout();
@@ -50,6 +51,12 @@ export const Navbar = () => {
                     </Link>
                   </>
                 )}
+                <Link to="/market-prices" className="hover:bg-primary-700 px-3 py-2 rounded-md">
+                  Market Prices
+                </Link>
+                <Link to="/fair-price-calculator" className="hover:bg-primary-700 px-3 py-2 rounded-md">
+                  Fair Price Calculator
+                </Link>
                 <NotificationCenter />
                 <Link to="/profile" className="hover:bg-primary-700 px-3 py-2 rounded-md flex items-center">
                   <User className="w-4 h-4 mr-1" />
@@ -65,6 +72,9 @@ export const Navbar = () => {
               </>
             ) : (
               <>
+                <Link to="/market-prices" className="hover:bg-primary-700 px-3 py-2 rounded-md">
+                  Market Prices
+                </Link>
                 <Link to="/login" className="hover:bg-primary-700 px-4 py-2 rounded-md">
                   Login
                 </Link>
@@ -100,20 +110,36 @@ export const Navbar = () => {
                   <>
                     <Link
                       to="/cart"
-                      className="block hover:bg-primary-700 px-3 py-2 rounded-md"
+                      className="block hover:bg-primary-700 px-3 py-2 rounded-md flex items-center"
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      🛒 Cart {cartCount > 0 && `(${cartCount})`}
+                      <ShoppingCart className="w-4 h-4 mr-1" />
+                      Cart {cartCount > 0 && `(${cartCount})`}
                     </Link>
                     <Link
                       to="/orders"
-                      className="block hover:bg-primary-700 px-3 py-2 rounded-md"
+                      className="block hover:bg-primary-700 px-3 py-2 rounded-md flex items-center"
                       onClick={() => setMobileMenuOpen(false)}
                     >
-                      📦 Orders
+                      <Package className="w-4 h-4 mr-1" />
+                      Orders
                     </Link>
                   </>
                 )}
+                <Link
+                  to="/market-prices"
+                  className="block hover:bg-primary-700 px-3 py-2 rounded-md"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Market Prices
+                </Link>
+                <Link
+                  to="/fair-price-calculator"
+                  className="block hover:bg-primary-700 px-3 py-2 rounded-md"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Fair Price Calculator
+                </Link>
                 <Link
                   to="/profile"
                   className="block hover:bg-primary-700 px-3 py-2 rounded-md"
@@ -133,6 +159,13 @@ export const Navbar = () => {
               </>
             ) : (
               <>
+                <Link
+                  to="/market-prices"
+                  className="block hover:bg-primary-700 px-3 py-2 rounded-md"
+                  onClick={() => setMobileMenuOpen(false)}
+                >
+                  Market Prices
+                </Link>
                 <Link
                   to="/login"
                   className="block hover:bg-primary-700 px-3 py-2 rounded-md"

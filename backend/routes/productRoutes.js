@@ -8,7 +8,8 @@ const {
   getProduct,
   updateProduct,
   deleteProduct,
-  getMyListings
+  getMyListings,
+  calculateFairPrice
 } = require('../controllers/productController');
 
 // Import Middleware
@@ -17,6 +18,7 @@ const upload = require('../middleware/uploadMiddleware');
 
 // Public routes
 router.get('/', getProducts);
+router.post('/calculate-fair-price', calculateFairPrice);
 
 // Protected routes (require authentication)
 router.use(protect);

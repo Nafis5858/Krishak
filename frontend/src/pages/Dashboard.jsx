@@ -1,8 +1,11 @@
 import { Link } from 'react-router-dom';
+import { useState, useEffect } from 'react';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/Card';
 import { User, ShoppingCart, Truck, Shield } from 'lucide-react';
-import { useState, useEffect } from 'react';
+import { getProducts } from '../services/productService';
+import { toast } from 'react-toastify';
+import PreOrderModal from '../components/PreOrderModal';
 import api from '../services/api';
 
 export const Dashboard = () => {
@@ -17,11 +20,16 @@ export const Dashboard = () => {
     totalOrders: 0,
     totalEarnings: 0
   });
+  const [products, setProducts] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState(null);
+  const [showPreOrderModal, setShowPreOrderModal] = useState(false);
 
   // Fetch statistics on component mount
   useEffect(() => {
     if (user?.role === 'buyer') {
       fetchBuyerStats();
+      fetchProducts();
     } else if (user?.role === 'farmer') {
       fetchFarmerStats();
     }
@@ -93,6 +101,28 @@ export const Dashboard = () => {
     }
   };
 
+  const fetchProducts = async () => {
+    setLoading(true);
+    try {
+      const response = await getProducts({ status: 'approved', limit: 6 });
+      setProducts(response.data || []);
+    } catch (error) {
+      console.error('Error fetching products:', error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handlePreOrder = (product) => {
+    setSelectedProduct(product);
+    setShowPreOrderModal(true);
+  };
+
+  const handlePreOrderSuccess = () => {
+    toast.success('Pre-order placed successfully!');
+    fetchProducts(); // Refresh products
+  };
+
   const getDashboardContent = () => {
     switch (user?.role) {
       case 'farmer':
@@ -145,6 +175,104 @@ export const Dashboard = () => {
                 <p className="text-gray-600 mt-2">Pending Orders</p>
               </Card>
             </div>
+
+            {/* Featured Products */}
+            <Card>
+              <div className="flex justify-between items-center mb-4">
+                <h2 className="text-xl font-semibold">Featured Products</h2>
+                <Link to="/browse" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
+                  View All →
+                </Link>
+              </div>
+
+              {loading ? (
+                <div className="text-center py-8">Loading products...</div>
+              ) : products.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                  {products.map((product) => (
+                    <div key={product._id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
+                      <div className="flex justify-between items-start mb-2">
+                        <h3 className="font-semibold text-lg">{product.cropName}</h3>
+                        <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
+                          Grade {product.grade}
+                        </span>
+                      </div>
+
+                      <p className="text-gray-600 text-sm mb-2">
+                        {product.location.village}, {product.location.district}
+                      </p>
+
+                      <div className="flex justify-between items-center mb-3">
+                        <span className="text-2xl font-bold text-primary-600">
+                          ৳{product.sellingPrice}/{product.unit}
+                        </span>
+                        <span className="text-sm text-gray-500">
+                          {product.quantity} {product.unit} available
+                        </span>
+                      </div>
+
+                      {/* Cost Breakdown for Buyers */}
+                      {product.costBreakdown && (
+                        <div className="bg-gray-50 p-3 rounded mb-3">
+                          <h4 className="font-medium text-sm mb-2">Cost Breakdown</h4>
+                          <div className="grid grid-cols-2 gap-2 text-xs">
+                            <div>Seed: ৳{product.costBreakdown.seedCost || 0}</div>
+                            <div>Fertilizer: ৳{product.costBreakdown.fertilizerCost || 0}</div>
+                            <div>Labor: ৳{product.costBreakdown.laborCost || 0}</div>
+                            <div>Transport: ৳{product.costBreakdown.transportCost || 0}</div>
+                          </div>
+                          <div className="mt-2 pt-2 border-t text-xs">
+                            <div className="flex justify-between">
+                              <span>Total Cost:</span>
+                              <span>৳{(product.costBreakdown.seedCost + product.costBreakdown.fertilizerCost + product.costBreakdown.laborCost + product.costBreakdown.transportCost + (product.costBreakdown.otherCost || 0)).toFixed(2)}</span>
+                            </div>
+                            {product.calculatedPrice && (
+                              <div className="flex justify-between text-green-600">
+                                <span>Farmer Earnings:</span>
+                                <span>৳{(product.sellingPrice - (product.costBreakdown.seedCost + product.costBreakdown.fertilizerCost + product.costBreakdown.laborCost + product.costBreakdown.transportCost + (product.costBreakdown.otherCost || 0)) / product.quantity).toFixed(2)}/{product.unit}</span>
+                              </div>
+                            )}
+                          </div>
+                        </div>
+                      )}
+
+                      {/* Price Comparison */}
+                      {product.calculatedPrice && (
+                        <div className="bg-blue-50 p-3 rounded">
+                          <h4 className="font-medium text-sm mb-2">Price Comparison</h4>
+                          <div className="grid grid-cols-3 gap-2 text-xs text-center">
+                            <div>
+                              <div className="font-medium">Wholesale</div>
+                              <div>৳{(product.calculatedPrice.suggestedPrice * 0.8).toFixed(2)}</div>
+                            </div>
+                            <div className="font-semibold text-blue-600">
+                              <div className="font-medium">You Pay</div>
+                              <div>৳{product.sellingPrice}</div>
+                            </div>
+                            <div>
+                              <div className="font-medium">Retail</div>
+                              <div>৳{(product.calculatedPrice.suggestedPrice * 1.2).toFixed(2)}</div>
+                            </div>
+                          </div>
+                        </div>
+                      )}
+
+                      <button
+                        onClick={() => product.isPreOrder ? handlePreOrder(product) : alert('Contact farmer functionality coming soon')}
+                        className="w-full mt-3 bg-primary-600 text-white py-2 px-4 rounded hover:bg-primary-700 transition"
+                      >
+                        {product.isPreOrder ? 'Pre-Order Now' : 'Contact Farmer'}
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8 text-gray-500">
+                  No products available at the moment.
+                </div>
+              )}
+            </Card>
+
             <Card>
               <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
               <div className="space-y-2">
@@ -270,6 +398,14 @@ export const Dashboard = () => {
 
         {getDashboardContent()}
       </div>
+
+      {showPreOrderModal && selectedProduct && (
+        <PreOrderModal
+          product={selectedProduct}
+          onClose={() => setShowPreOrderModal(false)}
+          onSuccess={handlePreOrderSuccess}
+        />
+      )}
     </div>
   );
 };
