@@ -1,6 +1,6 @@
-import React, { useState } from 'react';
-import Button from '../components/Button';
-import Input from '../components/Input';
+import { useState } from 'react';
+import { Button } from '../components/Button';
+import { Input } from '../components/Input';
 
 const FairPriceCalculator = () => {
   const [costs, setCosts] = useState({
@@ -35,8 +35,10 @@ const FairPriceCalculator = () => {
   };
 
   return (
-    <div className="max-w-4xl mx-auto p-6 bg-white rounded-lg shadow-md">
-      <h1 className="text-3xl font-bold text-center mb-8 text-green-700">Fair-Price Calculator</h1>
+    <div className="min-h-screen bg-gray-50 py-8">
+      <div className="max-w-4xl mx-auto px-4">
+        <div className="bg-white rounded-lg shadow-md p-6">
+          <h1 className="text-3xl font-bold text-center mb-8 text-green-700">Fair-Price Calculator</h1>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
         {/* Farmer Cost Breakdown */}
@@ -105,6 +107,8 @@ const FairPriceCalculator = () => {
           <p className="mt-4 text-sm text-gray-600">
             This calculator helps ensure fair pricing by considering all production costs and suggesting a reasonable profit margin.
           </p>
+        </div>
+      </div>
         </div>
       </div>
     </div>

@@ -50,3 +50,9 @@ export const deleteProduct = async (id) => {
   const response = await api.delete(`/products/${id}`);
   return response;
 };
+
+// Get farmer dashboard stats
+export const getFarmerStats = async () => {
+  const response = await api.get('/products/stats/farmer');
+  return response;
+};

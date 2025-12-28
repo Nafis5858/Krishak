@@ -8,10 +8,7 @@ import Card from '../../components/Card';
 import Input from '../../components/Input';
 import Select from '../../components/Select';
 import Button from '../../components/Button';
-<<<<<<< HEAD
-=======
 import FairPriceCalculator from '../../components/FairPriceCalculator';
->>>>>>> b4da24f (New import of project files)
 
 export default function CreateListing() {
   const navigate = useNavigate();
@@ -33,8 +30,7 @@ export default function CreateListing() {
     sellingPrice: '',
     isPreOrder: false,
     expectedHarvestDate: '',
-<<<<<<< HEAD
-=======
+
     costBreakdown: {
       seedCost: 0,
       fertilizerCost: 0,
@@ -43,7 +39,6 @@ export default function CreateListing() {
       otherCost: 0,
     },
     margin: 15,
->>>>>>> b4da24f (New import of project files)
   });
 
   const gradeOptions = [
@@ -68,8 +63,7 @@ export default function CreateListing() {
     }));
   };
 
-<<<<<<< HEAD
-=======
+
   const handleCostChange = (field, value) => {
     setFormData(prev => ({
       ...prev,
@@ -87,7 +81,6 @@ export default function CreateListing() {
     }));
   };
 
->>>>>>> b4da24f (New import of project files)
   const handlePhotoUpload = (e) => {
     const files = Array.from(e.target.files);
     
@@ -146,13 +139,11 @@ export default function CreateListing() {
           toast.error('Quantity and MOQ must be greater than 0');
           return false;
         }
-<<<<<<< HEAD
-=======
+
         if (formData.isPreOrder && !formData.expectedHarvestDate) {
           toast.error('Please select expected harvest date for pre-order');
           return false;
         }
->>>>>>> b4da24f (New import of project files)
         break;
       case 2:
         if (!formData.village || !formData.thana || !formData.district || !formData.harvestDate) {
@@ -210,13 +201,10 @@ export default function CreateListing() {
         formDataToSend.append('expectedHarvestDate', formData.expectedHarvestDate);
       }
 
-<<<<<<< HEAD
-=======
       // Append cost breakdown and margin
       formDataToSend.append('costBreakdown', JSON.stringify(formData.costBreakdown));
       formDataToSend.append('margin', formData.margin);
 
->>>>>>> b4da24f (New import of project files)
       // Append photo files
       formData.photoFiles.forEach(file => {
         formDataToSend.append('photos', file);
@@ -304,8 +292,6 @@ export default function CreateListing() {
         />
       </div>
 
-<<<<<<< HEAD
-=======
       {/* Pre-order option */}
       <div className="flex items-center space-x-2">
         <input
@@ -332,7 +318,6 @@ export default function CreateListing() {
         />
       )}
 
->>>>>>> b4da24f (New import of project files)
       <Input
         label="Minimum Order Quantity (MOQ) *"
         type="number"
@@ -458,7 +443,7 @@ export default function CreateListing() {
                   onClick={() => removePhoto(index)}
                   className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  Ã—
+                  +ù
                 </button>
               </div>
             ))}
@@ -475,11 +460,6 @@ export default function CreateListing() {
         <h3 className="text-xl font-semibold text-gray-900">Set Your Price</h3>
       </div>
 
-<<<<<<< HEAD
-      <div className="bg-blue-50 p-4 rounded-lg mb-6">
-        <p className="text-sm text-blue-800">
-          ðŸ’¡ Set a competitive price for your crop. Consider market rates and quality when pricing.
-=======
       {/* Fair Price Calculator */}
       <div className="mb-8">
         <FairPriceCalculator
@@ -500,8 +480,7 @@ export default function CreateListing() {
 
       <div className="bg-blue-50 p-4 rounded-lg mb-6">
         <p className="text-sm text-blue-800">
-          ðŸ’¡ Use the calculator above to determine a fair price based on your costs, or set your own price below.
->>>>>>> b4da24f (New import of project files)
+          ?? Use the calculator above to determine a fair price based on your costs, or set your own price below.
         </p>
       </div>
 
@@ -521,7 +500,7 @@ export default function CreateListing() {
         <div className="text-center">
           <p className="text-sm text-gray-600 mb-2">Your Selling Price</p>
           <p className="text-4xl font-bold text-green-600">
-            à§³{formData.sellingPrice || '0.00'}
+            aº¦{formData.sellingPrice || '0.00'}
           </p>
           <p className="text-sm text-gray-500 mt-1">per {formData.unit}</p>
         </div>

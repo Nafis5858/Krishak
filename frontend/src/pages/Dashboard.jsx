@@ -1,17 +1,9 @@
-import { Link } from 'react-router-dom';
-<<<<<<< HEAD
-import { useAuth } from '../context/AuthContext';
-import { Card } from '../components/Card';
-import { User, ShoppingCart, Truck, Shield } from 'lucide-react';
-
-export const Dashboard = () => {
-  const { user } = useAuth();
-=======
 import { useState, useEffect } from 'react';
+import { Link, Navigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { Card } from '../components/Card';
 import { User, ShoppingCart, Truck, Shield } from 'lucide-react';
-import { getProducts } from '../services/productService';
+import { getProducts, getFarmerStats } from '../services/productService';
 import { toast } from 'react-toastify';
 import PreOrderModal from '../components/PreOrderModal';
 
@@ -21,12 +13,39 @@ export const Dashboard = () => {
   const [loading, setLoading] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState(null);
   const [showPreOrderModal, setShowPreOrderModal] = useState(false);
+  const [farmerStats, setFarmerStats] = useState({
+    activeListings: 0,
+    pendingListings: 0,
+    totalOrders: 0,
+    totalEarnings: 0
+  });
+
+  // Redirect admin users to the proper admin dashboard
+  if (user?.role === 'admin') {
+    return <Navigate to="/admin/dashboard" replace />;
+  }
 
   useEffect(() => {
     if (user?.role === 'buyer') {
       fetchProducts();
+    } else if (user?.role === 'farmer') {
+      fetchFarmerStats();
     }
   }, [user]);
+
+  const fetchFarmerStats = async () => {
+    try {
+      const response = await getFarmerStats();
+      setFarmerStats(response.data || {
+        activeListings: 0,
+        pendingListings: 0,
+        totalOrders: 0,
+        totalEarnings: 0
+      });
+    } catch (error) {
+      console.error('Error fetching farmer stats:', error);
+    }
+  };
 
   const fetchProducts = async () => {
     setLoading(true);
@@ -49,7 +68,6 @@ export const Dashboard = () => {
     toast.success('Pre-order placed successfully!');
     fetchProducts(); // Refresh products
   };
->>>>>>> b4da24f (New import of project files)
 
   const getDashboardContent = () => {
     switch (user?.role) {
@@ -58,15 +76,15 @@ export const Dashboard = () => {
           <div className="space-y-6">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               <Card className="text-center">
-                <h3 className="text-4xl font-bold text-primary-600">0</h3>
+                <h3 className="text-4xl font-bold text-primary-600">{farmerStats.activeListings}</h3>
                 <p className="text-gray-600 mt-2">Active Listings</p>
               </Card>
               <Card className="text-center">
-                <h3 className="text-4xl font-bold text-primary-600">0</h3>
+                <h3 className="text-4xl font-bold text-primary-600">{farmerStats.totalOrders}</h3>
                 <p className="text-gray-600 mt-2">Total Orders</p>
               </Card>
               <Card className="text-center">
-                <h3 className="text-4xl font-bold text-primary-600">৳0</h3>
+                <h3 className="text-4xl font-bold text-primary-600">৳{farmerStats.totalEarnings.toFixed(0)}</h3>
                 <p className="text-gray-600 mt-2">Total Earnings</p>
               </Card>
             </div>
@@ -103,8 +121,7 @@ export const Dashboard = () => {
                 <p className="text-gray-600 mt-2">Pending Orders</p>
               </Card>
             </div>
-<<<<<<< HEAD
-=======
+
 
             {/* Featured Products */}
             <Card>
@@ -203,7 +220,6 @@ export const Dashboard = () => {
               )}
             </Card>
 
->>>>>>> b4da24f (New import of project files)
             <Card>
               <h2 className="text-xl font-semibold mb-4">Quick Actions</h2>
               <div className="space-y-2">
@@ -329,8 +345,7 @@ export const Dashboard = () => {
 
         {getDashboardContent()}
       </div>
-<<<<<<< HEAD
-=======
+
 
       {showPreOrderModal && selectedProduct && (
         <PreOrderModal
@@ -339,7 +354,7 @@ export const Dashboard = () => {
           onSuccess={handlePreOrderSuccess}
         />
       )}
->>>>>>> b4da24f (New import of project files)
+
     </div>
   );
 };

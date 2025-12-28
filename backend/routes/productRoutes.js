@@ -8,12 +8,9 @@ const {
   getProduct,
   updateProduct,
   deleteProduct,
-<<<<<<< HEAD
-  getMyListings
-=======
   getMyListings,
-  calculateFairPrice
->>>>>>> b4da24f (New import of project files)
+  calculateFairPrice,
+  getFarmerStats
 } = require('../controllers/productController');
 
 // Import Middleware
@@ -22,15 +19,13 @@ const upload = require('../middleware/uploadMiddleware');
 
 // Public routes
 router.get('/', getProducts);
-<<<<<<< HEAD
-=======
 router.post('/calculate-fair-price', calculateFairPrice);
->>>>>>> b4da24f (New import of project files)
 
 // Protected routes (require authentication)
 router.use(protect);
 
 // Farmer routes - specific routes MUST come before parameterized routes
+router.get('/stats/farmer', authorize('farmer'), getFarmerStats);
 router.get('/my-listings', authorize('farmer'), getMyListings);
 router.post('/', authorize('farmer'), upload.array('photos', 5), createProduct);
 
