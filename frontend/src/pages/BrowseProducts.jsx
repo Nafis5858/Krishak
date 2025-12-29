@@ -280,17 +280,24 @@ export const BrowseProducts = () => {
             {products.map((product) => (
               <Card key={product._id} className="p-6 hover:shadow-lg transition-shadow">
                 {/* Product Image */}
-                {product.photos && product.photos.length > 0 ? (
-                  <img
-                    src={product.photos[0]}
-                    alt={product.cropName}
-                    className="w-full h-48 object-cover rounded-lg mb-4"
-                  />
-                ) : (
-                  <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center mb-4">
+                <div className="w-full h-48 mb-4 relative">
+                  {product.photos && product.photos.length > 0 ? (
+                    <img
+                      src={`http://localhost:5000${product.photos[0]}`}
+                      alt={product.cropName}
+                      className="w-full h-48 object-cover rounded-lg"
+                      onError={(e) => {
+                        // Hide image and show placeholder on error
+                        e.target.style.display = 'none';
+                        const placeholder = e.target.parentElement.querySelector('.image-placeholder');
+                        if (placeholder) placeholder.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div className={`image-placeholder w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center ${product.photos && product.photos.length > 0 ? 'hidden' : ''}`}>
                     <span className="text-6xl">🌾</span>
                   </div>
-                )}
+                </div>
 
                 {/* Product Info */}
                 <div className="mb-4">

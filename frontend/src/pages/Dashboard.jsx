@@ -54,7 +54,7 @@ export const Dashboard = () => {
     } else if (user.role === 'transporter') {
       fetchTransporterStats();
     }
-  }, [user, location.pathname]); // Refresh when location changes (user navigates back)
+  }, [user?.role, location.pathname]); // Refresh when user role or location changes
 
   const fetchFarmerStats = async () => {
     try {
@@ -88,24 +88,32 @@ export const Dashboard = () => {
       }
       
       const response = await getBuyerStats();
-      console.log('✅ Buyer stats response:', response);
+      console.log('✅ Buyer stats response (full):', JSON.stringify(response, null, 2));
       
-      // API interceptor returns response.data, so response is already { success: true, data: {...} }
-      // Extract the data object
-      const stats = response?.data || response || {};
-      console.log('📊 Extracted stats:', stats);
+      // API interceptor returns response.data
+      // Backend sends: { success: true, data: { totalOrders, ... } }
+      // Interceptor extracts: response.data = { success: true, data: {...} }
+      // So response = { success: true, data: { totalOrders, pendingOrders, ... } }
+      // We need response.data to get the actual stats
+      const stats = response?.data || {};
+      console.log('📊 Extracted stats object:', stats);
+      console.log('📊 Stats values:', {
+        totalOrders: stats.totalOrders,
+        totalSpent: stats.totalSpent,
+        pendingOrders: stats.pendingOrders,
+        completedOrders: stats.completedOrders
+      });
       
-      if (stats.totalOrders !== undefined || stats.totalSpent !== undefined) {
-        setBuyerStats({
-          totalOrders: Number(stats.totalOrders) || 0,
-          totalSpent: Number(stats.totalSpent) || 0,
-          pendingOrders: Number(stats.pendingOrders) || 0,
-          completedOrders: Number(stats.completedOrders) || 0
-        });
-        console.log('✅ Stats updated successfully');
-      } else {
-        console.warn('⚠️ Stats data structure unexpected:', stats);
-      }
+      // Always update stats (even if 0)
+      const updatedStats = {
+        totalOrders: Number(stats.totalOrders ?? 0),
+        totalSpent: Number(stats.totalSpent ?? 0),
+        pendingOrders: Number(stats.pendingOrders ?? 0),
+        completedOrders: Number(stats.completedOrders ?? 0)
+      };
+      
+      setBuyerStats(updatedStats);
+      console.log('✅ Stats state updated:', updatedStats);
     } catch (error) {
       console.error('❌ Error fetching buyer stats:', error);
       console.error('Error status:', error.status);

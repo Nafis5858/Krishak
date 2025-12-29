@@ -39,6 +39,7 @@ export const Checkout = () => {
   const [selectedAddress, setSelectedAddress] = useState(null);
   const [showMapSelector, setShowMapSelector] = useState(false);
   const [mapCoordinates, setMapCoordinates] = useState(null);
+  const [mapAddress, setMapAddress] = useState('');
   const [deliverySlot, setDeliverySlot] = useState({
     date: '',
     timeSlot: ''
@@ -99,16 +100,70 @@ export const Checkout = () => {
   const handleAddressSelect = (address) => {
     setSelectedAddress(address);
     setMapCoordinates(null);
+    setMapAddress(''); // Clear map address when selecting saved address
+  };
+
+  // Helper function to parse address and extract district/thana
+  const parseAddress = (addressString) => {
+    if (!addressString) return { district: 'Unknown', thana: 'Unknown' };
+    
+    const parts = addressString.split(',').map(p => p.trim());
+    let district = 'Unknown';
+    let thana = 'Unknown';
+    
+    // Try to find district (usually contains "District" or is a major city)
+    const districtIndex = parts.findIndex(p => 
+      p.toLowerCase().includes('district') || 
+      p.toLowerCase().includes('zilla')
+    );
+    
+    if (districtIndex !== -1) {
+      district = parts[districtIndex].replace(/district|zilla/gi, '').trim();
+      // If district found, thana might be before it
+      if (districtIndex > 0) {
+        thana = parts[districtIndex - 1];
+      }
+    } else {
+      // Try to identify district from common patterns
+      // Usually format: "Place, Thana, District, Division, Country"
+      if (parts.length >= 3) {
+        // Second to last might be district
+        district = parts[parts.length - 3] || parts[parts.length - 2] || 'Unknown';
+        // Third to last might be thana
+        if (parts.length >= 4) {
+          thana = parts[parts.length - 4] || parts[parts.length - 3] || 'Unknown';
+        }
+      } else if (parts.length === 2) {
+        // Simple format: "City, District"
+        district = parts[1] || 'Unknown';
+        thana = parts[0] || 'Unknown';
+      } else if (parts.length === 1) {
+        // Just a place name
+        district = parts[0] || 'Unknown';
+        thana = parts[0] || 'Unknown';
+      }
+    }
+    
+    // Clean up common suffixes
+    district = district.replace(/district|zilla|division/gi, '').trim() || 'Unknown';
+    thana = thana.replace(/thana|upazila|upazilla/gi, '').trim() || 'Unknown';
+    
+    return { district, thana };
   };
 
   const handleMapSelect = (coordinates, address) => {
     setMapCoordinates(coordinates);
+    setMapAddress(address); // Store the address/place name
     setShowMapSelector(false);
+    
+    // Parse address to extract district and thana
+    const { district, thana } = parseAddress(address);
+    
     // Create a temporary address object from map selection
     setSelectedAddress({
       addressLine: address,
-      thana: '',
-      district: '',
+      thana: thana,
+      district: district,
       coordinates: coordinates,
       isMapSelected: true
     });
@@ -138,10 +193,18 @@ export const Checkout = () => {
       const orderPromises = cartItems.map((item) => {
         const deliveryAddress = {
           addressLine: selectedAddress.addressLine || selectedAddress.addressLine1 || '',
-          thana: selectedAddress.thana || '',
-          district: selectedAddress.district || '',
+          thana: selectedAddress.thana || 'Unknown',
+          district: selectedAddress.district || 'Unknown',
           coordinates: mapCoordinates || selectedAddress.coordinates || null
         };
+        
+        // Ensure required fields are not empty
+        if (!deliveryAddress.thana || deliveryAddress.thana.trim() === '') {
+          deliveryAddress.thana = 'Unknown';
+        }
+        if (!deliveryAddress.district || deliveryAddress.district.trim() === '') {
+          deliveryAddress.district = 'Unknown';
+        }
 
         // Combine date and time slot for estimated delivery
         let deliveryDateTime = null;
@@ -289,7 +352,7 @@ export const Checkout = () => {
               {selectedAddress?.isMapSelected && mapCoordinates && (
                 <div className="mt-4 p-3 bg-blue-50 rounded-lg">
                   <p className="text-sm text-blue-800">
-                    📍 Map location selected: {mapCoordinates.lat.toFixed(6)}, {mapCoordinates.lng.toFixed(6)}
+                    📍 Map location selected: {mapAddress || `${mapCoordinates.lat.toFixed(6)}, ${mapCoordinates.lng.toFixed(6)}`}
                   </p>
                 </div>
               )}
