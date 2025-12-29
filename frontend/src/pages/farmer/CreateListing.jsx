@@ -443,7 +443,7 @@ export default function CreateListing() {
                   onClick={() => removePhoto(index)}
                   className="absolute top-2 right-2 bg-red-500 text-white rounded-full w-6 h-6 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity"
                 >
-                  +ù
+                  +ï¿½
                 </button>
               </div>
             ))}
@@ -500,7 +500,7 @@ export default function CreateListing() {
         <div className="text-center">
           <p className="text-sm text-gray-600 mb-2">Your Selling Price</p>
           <p className="text-4xl font-bold text-green-600">
-            aº¦{formData.sellingPrice || '0.00'}
+            aï¿½ï¿½{formData.sellingPrice || '0.00'}
           </p>
           <p className="text-sm text-gray-500 mt-1">per {formData.unit}</p>
         </div>
