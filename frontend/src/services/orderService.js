@@ -42,12 +42,6 @@ export const getTransporterStats = async () => {
   return response;
 };
 
-// Submit product review
-export const submitProductReview = async (orderId, reviewData) => {
-  const response = await api.post(`/orders/${orderId}/review`, reviewData);
-  return response;
-};
-
 export const orderService = {
   createOrder,
   getMyOrders,
@@ -55,8 +49,7 @@ export const orderService = {
   getOrderById: getOrder,
   updateOrderStatus,
   getBuyerStats,
-  getTransporterStats,
-  submitProductReview
+  getTransporterStats
 };
 
 export default orderService;

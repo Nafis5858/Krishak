@@ -2,25 +2,31 @@ import { useState, useEffect } from 'react';
 import { useParams, useNavigate, Link } from 'react-router-dom';
 import { 
   ArrowLeft, Package, MapPin, Calendar, Phone, User,
-  Truck, CheckCircle, Clock, CreditCard, FileText, Camera, Image, Star, X
+  Truck, CheckCircle, Clock, CreditCard, FileText, Camera, Image, Star
 } from 'lucide-react';
-import { orderService, submitProductReview } from '../../services/orderService';
+import { useAuth } from '../../context/AuthContext';
+import { orderService } from '../../services/orderService';
+import { reviewService } from '../../services/reviewService';
 import Loading from '../../components/Loading';
 import Button from '../../components/Button';
 import Card from '../../components/Card';
 import OrderTracking from '../../components/OrderTracking';
+import ReviewForm from '../../components/ReviewForm';
 import { getImageUrl, getPhotoUrl } from '../../utils/imageHelper';
-import { toast } from 'react-toastify';
 
 const OrderDetails = () => {
   const { orderId } = useParams();
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [order, setOrder] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [showReviewModal, setShowReviewModal] = useState(false);
-  const [reviewData, setReviewData] = useState({ rating: 0, review: '' });
-  const [submittingReview, setSubmittingReview] = useState(false);
+  const [showReviewForm, setShowReviewForm] = useState(false);
+  const [canReview, setCanReview] = useState(false);
+  const [hasReviewed, setHasReviewed] = useState(false);
+  
+  // Only buyers can review
+  const isBuyer = user?.role === 'buyer';
 
   useEffect(() => {
     fetchOrderDetails();
@@ -28,6 +34,34 @@ const OrderDetails = () => {
     const interval = setInterval(fetchOrderDetails, 10000);
     return () => clearInterval(interval);
   }, [orderId]);
+
+  useEffect(() => {
+    if (order) {
+      checkReviewStatus();
+    }
+  }, [order]);
+
+  const checkReviewStatus = async () => {
+    try {
+      const response = await reviewService.checkCanReview(orderId);
+      console.log('Review status check response:', response);
+      setCanReview(response.canReview);
+      setHasReviewed(response.hasReviewed);
+      
+      // Also check locally if order is completed/delivered
+      if (order && (order.orderStatus === 'completed' || order.deliveryStatus === 'delivered')) {
+        if (!response.hasReviewed) {
+          setCanReview(true);
+        }
+      }
+    } catch (error) {
+      console.error('Error checking review status:', error);
+      // Fallback: if order is completed/delivered locally, allow review
+      if (order && (order.orderStatus === 'completed' || order.deliveryStatus === 'delivered')) {
+        setCanReview(true);
+      }
+    }
+  };
 
   const fetchOrderDetails = async () => {
     try {
@@ -74,33 +108,6 @@ const OrderDetails = () => {
       hour: '2-digit',
       minute: '2-digit'
     });
-  };
-
-  const handleSubmitReview = async () => {
-    if (reviewData.rating === 0) {
-      toast.error('Please select a rating');
-      return;
-    }
-
-    try {
-      setSubmittingReview(true);
-      await submitProductReview(orderId, reviewData);
-      toast.success('Review submitted successfully!');
-      setShowReviewModal(false);
-      setReviewData({ rating: 0, review: '' });
-      fetchOrderDetails(); // Refresh order data
-    } catch (err) {
-      toast.error(err.response?.data?.message || 'Failed to submit review');
-    } finally {
-      setSubmittingReview(false);
-    }
-  };
-
-  const canReview = () => {
-    return order && 
-           order.deliveryStatus === 'delivered' && 
-           order.orderStatus === 'completed' &&
-           !order.farmerRating?.rating;
   };
 
   if (loading) return <Loading />;
@@ -446,155 +453,64 @@ const OrderDetails = () => {
             </Card>
           )}
 
-          {/* Review Section */}
-          {order.farmerRating?.rating ? (
+          {/* Review Section - Show for completed or delivered orders (Buyers only) */}
+          {isBuyer && (order.orderStatus === 'completed' || order.deliveryStatus === 'delivered') && (
             <Card>
-              <div className="p-4 border-b border-gray-200">
-                <h3 className="font-semibold text-gray-900 flex items-center gap-2">
-                  <Star className="w-5 h-5 text-yellow-500 fill-current" />
-                  Your Review
-                </h3>
-              </div>
-              <div className="p-4">
+              <div className="p-6 border-b border-gray-200">
                 <div className="flex items-center gap-2 mb-2">
-                  {[1, 2, 3, 4, 5].map((star) => (
-                    <Star
-                      key={star}
-                      className={`w-5 h-5 ${
-                        star <= order.farmerRating.rating
-                          ? 'text-yellow-500 fill-current'
-                          : 'text-gray-300'
-                      }`}
-                    />
-                  ))}
-                  <span className="text-sm text-gray-600 ml-2">
-                    {order.farmerRating.rating}/5
-                  </span>
+                  <Star className="w-6 h-6 text-yellow-500" />
+                  <h2 className="text-xl font-semibold text-gray-900">Product Review</h2>
                 </div>
-                {order.farmerRating.review && (
-                  <p className="text-sm text-gray-700 mt-2">{order.farmerRating.review}</p>
-                )}
-                <p className="text-xs text-gray-500 mt-2">
-                  Reviewed on {formatDate(order.farmerRating.createdAt)}
+                <p className="text-sm text-gray-600">
+                  Share your experience with this product to help other buyers
                 </p>
               </div>
-            </Card>
-          ) : canReview() && (
-            <Card className="bg-gradient-to-r from-yellow-50 to-orange-50 border-yellow-200">
-              <div className="p-6 text-center">
-                <Star className="w-12 h-12 text-yellow-500 mx-auto mb-3" />
-                <h3 className="text-lg font-semibold text-gray-900 mb-2">
-                  Rate Your Experience
-                </h3>
-                <p className="text-sm text-gray-600 mb-4">
-                  Help other buyers by sharing your feedback about {order.farmer?.name}'s product
-                </p>
-                <Button onClick={() => setShowReviewModal(true)}>
-                  <Star className="w-4 h-4 mr-2" />
-                  Write a Review
-                </Button>
+              <div className="p-6">
+                {hasReviewed ? (
+                  <div className="text-center py-4">
+                    <CheckCircle className="w-12 h-12 text-green-500 mx-auto mb-2" />
+                    <p className="text-gray-700 font-medium">You have already reviewed this product</p>
+                    <p className="text-sm text-gray-500 mt-1">Thank you for your feedback!</p>
+                  </div>
+                ) : canReview ? (
+                  <div>
+                    {showReviewForm ? (
+                      <ReviewForm
+                        order={order}
+                        product={order.product}
+                        onReviewSubmitted={() => {
+                          setShowReviewForm(false);
+                          setHasReviewed(true);
+                          setCanReview(false);
+                          checkReviewStatus();
+                        }}
+                        onClose={() => setShowReviewForm(false)}
+                      />
+                    ) : (
+                      <div className="text-center py-4">
+                        <Button onClick={() => setShowReviewForm(true)}>
+                          <Star className="w-4 h-4 mr-2" />
+                          Write a Review
+                        </Button>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-4">
+                    <p className="text-gray-600">This order is not yet eligible for review</p>
+                    <p className="text-xs text-gray-500 mt-2">
+                      Order Status: {order.orderStatus} | Delivery Status: {order.deliveryStatus || 'N/A'}
+                    </p>
+                    <p className="text-xs text-gray-500">
+                      Orders can be reviewed when they are completed or delivered.
+                    </p>
+                  </div>
+                )}
               </div>
             </Card>
           )}
         </div>
       </div>
-
-      {/* Review Modal */}
-      {showReviewModal && (
-        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-lg w-full p-6 relative animate-fadeIn">
-            {/* Close Button */}
-            <button
-              onClick={() => setShowReviewModal(false)}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
-            >
-              <X className="w-6 h-6" />
-            </button>
-
-            {/* Header */}
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-yellow-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Star className="w-8 h-8 text-yellow-500" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">Rate Your Experience</h3>
-              <p className="text-gray-600 mt-2">
-                How was the product quality from {order.farmer?.name}?
-              </p>
-            </div>
-
-            {/* Rating Stars */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-3 text-center">
-                Select Rating
-              </label>
-              <div className="flex justify-center gap-2">
-                {[1, 2, 3, 4, 5].map((star) => (
-                  <button
-                    key={star}
-                    type="button"
-                    onClick={() => setReviewData({ ...reviewData, rating: star })}
-                    className="transition-transform hover:scale-110"
-                  >
-                    <Star
-                      className={`w-10 h-10 ${
-                        star <= reviewData.rating
-                          ? 'text-yellow-500 fill-current'
-                          : 'text-gray-300'
-                      } transition-colors`}
-                    />
-                  </button>
-                ))}
-              </div>
-              {reviewData.rating > 0 && (
-                <p className="text-center text-sm text-gray-600 mt-2">
-                  {reviewData.rating === 5 && 'Excellent! 🌟'}
-                  {reviewData.rating === 4 && 'Very Good! 👍'}
-                  {reviewData.rating === 3 && 'Good 👌'}
-                  {reviewData.rating === 2 && 'Fair 🤔'}
-                  {reviewData.rating === 1 && 'Poor 👎'}
-                </p>
-              )}
-            </div>
-
-            {/* Review Text */}
-            <div className="mb-6">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Your Review (Optional)
-              </label>
-              <textarea
-                value={reviewData.review}
-                onChange={(e) => setReviewData({ ...reviewData, review: e.target.value })}
-                rows={4}
-                maxLength={500}
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-transparent resize-none"
-                placeholder="Share your experience with this product..."
-              />
-              <p className="text-xs text-gray-500 mt-1 text-right">
-                {reviewData.review.length}/500 characters
-              </p>
-            </div>
-
-            {/* Action Buttons */}
-            <div className="flex gap-3">
-              <Button
-                variant="secondary"
-                onClick={() => setShowReviewModal(false)}
-                disabled={submittingReview}
-                className="flex-1"
-              >
-                Cancel
-              </Button>
-              <Button
-                onClick={handleSubmitReview}
-                disabled={reviewData.rating === 0 || submittingReview}
-                className="flex-1"
-              >
-                {submittingReview ? 'Submitting...' : 'Submit Review'}
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
     </div>
   );
 };

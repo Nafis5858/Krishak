@@ -6,10 +6,11 @@ import { Button } from '../components/Button';
 import { Input } from '../components/Input';
 import { Select } from '../components/Select';
 import { Loading } from '../components/Loading';
-import { Search, Filter, ShoppingCart, MapPin, Package, Star, User } from 'lucide-react';
+import { Search, Filter, ShoppingCart, MapPin, Package, Star, User, MessageSquare } from 'lucide-react';
 import { getProducts } from '../services/productService';
 import { toast } from 'react-toastify';
 import { BANGLADESH_DISTRICTS } from '../utils/bangladeshData';
+import ProductReviews from '../components/ProductReviews';
 
 export const BrowseProducts = () => {
   const { addToCart } = useCart();
@@ -26,6 +27,7 @@ export const BrowseProducts = () => {
     maxPrice: ''
   });
   const [sortBy, setSortBy] = useState('newest'); // newest, price-low, price-high
+  const [selectedProductForReviews, setSelectedProductForReviews] = useState(null);
 
   useEffect(() => {
     fetchProducts();
@@ -280,17 +282,24 @@ export const BrowseProducts = () => {
             {products.map((product) => (
               <Card key={product._id} className="p-6 hover:shadow-lg transition-shadow">
                 {/* Product Image */}
-                {product.photos && product.photos.length > 0 ? (
-                  <img
-                    src={product.photos[0]}
-                    alt={product.cropName}
-                    className="w-full h-48 object-cover rounded-lg mb-4"
-                  />
-                ) : (
-                  <div className="w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center mb-4">
+                <div className="w-full h-48 mb-4 relative">
+                  {product.photos && product.photos.length > 0 ? (
+                    <img
+                      src={`http://localhost:5000${product.photos[0]}`}
+                      alt={product.cropName}
+                      className="w-full h-48 object-cover rounded-lg"
+                      onError={(e) => {
+                        // Hide image and show placeholder on error
+                        e.target.style.display = 'none';
+                        const placeholder = e.target.parentElement.querySelector('.image-placeholder');
+                        if (placeholder) placeholder.style.display = 'flex';
+                      }}
+                    />
+                  ) : null}
+                  <div className={`image-placeholder w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center ${product.photos && product.photos.length > 0 ? 'hidden' : ''}`}>
                     <span className="text-6xl">🌾</span>
                   </div>
-                )}
+                </div>
 
                 {/* Product Info */}
                 <div className="mb-4">
@@ -317,6 +326,21 @@ export const BrowseProducts = () => {
                           </span>
                         </div>
                       )}
+                    </div>
+                  )}
+
+                  {/* Product Rating */}
+                  {product.reviewCount > 0 && (
+                    <div className="flex items-center gap-2 mb-2 text-sm">
+                      <div className="flex items-center gap-1">
+                        <Star className="w-4 h-4 text-yellow-500 fill-current" />
+                        <span className="font-medium text-gray-700">
+                          {product.averageRating?.toFixed(1) || '0.0'}
+                        </span>
+                        <span className="text-gray-500 text-xs">
+                          ({product.reviewCount} {product.reviewCount === 1 ? 'review' : 'reviews'})
+                        </span>
+                      </div>
                     </div>
                   )}
 
@@ -369,25 +393,58 @@ export const BrowseProducts = () => {
                 </div>
 
                 {/* Actions */}
-                <div className="flex space-x-2">
-                  <Button
-                    onClick={() => handleAddToCart(product)}
-                    className="flex-1"
-                  >
-                    <ShoppingCart className="w-4 h-4 mr-2" />
-                    Add to Cart
-                  </Button>
-                  {product.isPreOrder && (
+                <div className="flex flex-col space-y-2">
+                  <div className="flex space-x-2">
                     <Button
-                      variant="secondary"
-                      onClick={() => navigate(`/pre-order/${product._id}`)}
+                      onClick={() => handleAddToCart(product)}
+                      className="flex-1"
                     >
-                      Pre-Order
+                      <ShoppingCart className="w-4 h-4 mr-2" />
+                      Add to Cart
+                    </Button>
+                    {product.isPreOrder && (
+                      <Button
+                        variant="secondary"
+                        onClick={() => navigate(`/pre-order/${product._id}`)}
+                      >
+                        Pre-Order
+                      </Button>
+                    )}
+                  </div>
+                  {product.reviewCount > 0 && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={() => setSelectedProductForReviews(product._id)}
+                      className="w-full"
+                    >
+                      <MessageSquare className="w-4 h-4 mr-2" />
+                      View Reviews ({product.reviewCount})
                     </Button>
                   )}
                 </div>
               </Card>
             ))}
+          </div>
+        )}
+
+        {/* Reviews Modal */}
+        {selectedProductForReviews && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white rounded-lg max-w-3xl w-full max-h-[90vh] overflow-y-auto">
+              <div className="sticky top-0 bg-white border-b border-gray-200 p-4 flex items-center justify-between">
+                <h2 className="text-xl font-semibold text-gray-900">Product Reviews</h2>
+                <button
+                  onClick={() => setSelectedProductForReviews(null)}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  ✕
+                </button>
+              </div>
+              <div className="p-6">
+                <ProductReviews productId={selectedProductForReviews} />
+              </div>
+            </div>
           </div>
         )}
       </div>
