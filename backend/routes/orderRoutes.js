@@ -8,8 +8,7 @@ const {
   getOrder,
   updateOrderStatus,
   getBuyerStats,
-  getTransporterStats,
-  submitProductReview
+  getTransporterStats
 } = require('../controllers/orderController');
 
 // Import Middleware
@@ -25,9 +24,6 @@ router.post('/', authorize('buyer'), createOrder);
 // IMPORTANT: These routes must come before /:id to prevent Express from matching "stats" as an ID
 router.get('/stats/buyer', authorize('buyer'), getBuyerStats);
 router.get('/stats/transporter', authorize('transporter'), getTransporterStats);
-
-// Buyer review route (must be before /:id route)
-router.post('/:id/review', authorize('buyer'), submitProductReview);
 
 // Farmer/Admin routes (must be before /:id route)
 router.put('/:id/status', authorize('farmer', 'admin'), updateOrderStatus);

@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext';
 import { LogOut, User, Menu, X, ShoppingCart, Truck } from 'lucide-react';
 import { useState, useContext } from 'react';
 import { CartContext } from '../context/CartContext';
+import NotificationDropdown from './NotificationDropdown';
 
 export const Navbar = () => {
   const { user, logout, isAuthenticated } = useAuth();
@@ -72,6 +73,7 @@ export const Navbar = () => {
                     </Link>
                   </>
                 )}
+                <NotificationDropdown />
                 <Link to="/profile" className="hover:bg-primary-700 px-3 py-2 rounded-md flex items-center">
                   <User className="w-4 h-4 mr-1" />
                   {user?.name}
@@ -183,6 +185,9 @@ export const Navbar = () => {
                     </Link>
                   </>
                 )}
+                <div className="px-3 py-2">
+                  <NotificationDropdown />
+                </div>
                 <Link
                   to="/profile"
                   className="block hover:bg-primary-700 px-3 py-2 rounded-md"
