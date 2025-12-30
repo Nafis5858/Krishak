@@ -1,6 +1,7 @@
 const asyncHandler = require('express-async-handler');
 const Order = require('../models/Order');
 const User = require('../models/User');
+const { notifyDeliveryAssigned, notifyDeliveryPicked, notifyDeliveryInTransit, notifyOrderDelivered } = require('../utils/notificationHelper');
 
 // @desc    Get available delivery jobs for transporter
 // @route   GET /api/transporter/jobs
@@ -77,6 +78,9 @@ const acceptJob = asyncHandler(async (req, res) => {
   order.estimatedDeliveryDate = estimatedDate;
 
   await order.save();
+
+  // Send notification
+  await notifyDeliveryAssigned(order, transporterId);
 
   const populatedOrder = await Order.findById(order._id)
     .populate('buyer', 'name phone')
@@ -169,6 +173,15 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
   }
 
   await order.save();
+
+  // Send notifications based on status
+  if (status === 'picked') {
+    await notifyDeliveryPicked(order);
+  } else if (status === 'in_transit') {
+    await notifyDeliveryInTransit(order);
+  } else if (status === 'delivered') {
+    await notifyOrderDelivered(order);
+  }
 
   const populatedOrder = await Order.findById(order._id)
     .populate('buyer', 'name phone')

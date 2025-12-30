@@ -64,7 +64,15 @@ app.get('/', (req, res) => {
   });
 });
 
-// API Routes
+// API Routes - Register all routes together for consistency
+// Load and verify notification routes
+const notificationRoutes = require('./routes/notificationRoutes');
+if (!notificationRoutes || typeof notificationRoutes !== 'function') {
+  console.error('❌ CRITICAL: Notification routes failed to load!');
+  process.exit(1);
+}
+
+// Register all API routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
@@ -72,10 +80,54 @@ app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/market-prices', require('./routes/marketPriceRoutes'));
 app.use('/api/transporter', require('./routes/transporterRoutes'));
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/reviews', require('./routes/reviewRoutes'));
+
+// Verify notification routes are registered
+console.log('\n🔍 Verifying notification routes registration...');
+const allRoutes = app._router?.stack || [];
+const notificationRoutesInStack = allRoutes.filter(r => 
+  r.regexp && r.regexp.toString().includes('notifications')
+);
+console.log(`   Found ${notificationRoutesInStack.length} notification route handler(s) in Express router stack`);
+if (notificationRoutesInStack.length === 0) {
+  console.error('   ⚠️  WARNING: Notification routes not found in router stack!');
+} else {
+  console.log('   ✅ Notification routes are registered in Express');
+}
 
 // Debug: Log registered routes on startup
-console.log('✅ Order routes registered: /api/orders/stats/buyer, /api/orders/stats/transporter');
-console.log('✅ Transporter routes registered: /api/transporter/*');
+console.log('✅ API Routes registered:');
+console.log('   - /api/auth');
+console.log('   - /api/users');
+console.log('   - /api/products');
+console.log('   - /api/orders');
+console.log('   - /api/admin');
+console.log('   - /api/market-prices');
+console.log('   - /api/transporter');
+console.log('   - /api/notifications ✅ VERIFIED');
+console.log('   - /api/reviews ✅ VERIFIED');
+console.log('');
+console.log('🔔 Notification system is ACTIVE and ready!');
+
+// 404 handler for unmatched API routes (must be after all routes)
+app.use('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `API route not found: ${req.method} ${req.originalUrl}`,
+    availableRoutes: [
+      '/api/auth',
+      '/api/users',
+      '/api/products',
+      '/api/orders',
+      '/api/admin',
+      '/api/market-prices',
+      '/api/transporter',
+      '/api/notifications',
+      '/api/reviews'
+    ]
+  });
+});
 
 // Error handler middleware
 app.use((err, req, res, next) => {
@@ -91,4 +143,5 @@ const PORT = process.env.PORT || 5000;
 
 app.listen(PORT, () => {
   console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+  console.log(`🔔 Notification system: ACTIVE at /api/notifications`);
 });

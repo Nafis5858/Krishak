@@ -2,6 +2,7 @@ const asyncHandler = require('express-async-handler');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User');
+const { notifyOrderPlaced, notifyOrderCancelled, notifyOrderCompleted } = require('../utils/notificationHelper');
 
 // @desc    Create new order
 // @route   POST /api/orders
@@ -124,15 +125,8 @@ const createOrder = asyncHandler(async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    // TODO: Send notification to farmer
-    // await sendNotificationToFarmer(product.farmer, {
-    //   type: 'NEW_ORDER',
-    //   orderId: order[0]._id,
-    //   orderNumber,
-    //   quantity,
-    //   totalPrice,
-    //   buyerName: req.user.name
-    // });
+    // Send notifications
+    await notifyOrderPlaced(order[0]);
 
     console.log(`✅ Order created & CONFIRMED: ${orderNumber} | Buyer: ${req.user._id} | Farmer: ${product.farmer} | Product: ${product.cropName} | Qty: ${quantity}${product.unit} | Total: ৳${totalPrice}`);
 
@@ -368,6 +362,9 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
       await product.save();
     }
 
+    // Send cancellation notification
+    await notifyOrderCancelled(order, req.user._id);
+
     console.log(`⚠️ Order ${order.orderNumber} cancelled | Quantity restored: ${order.quantity} ${order.product.unit}`);
   }
 
@@ -381,94 +378,15 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 
   await order.save();
 
+  // Send completion notification
+  if (status === 'completed' && oldStatus !== 'completed') {
+    await notifyOrderCompleted(order);
+  }
+
   res.json({
     success: true,
     message: `Order status updated to ${status}`,
     data: order
-  });
-});
-
-// @desc    Submit product review (buyer reviews farmer/product)
-// @route   POST /api/orders/:id/review
-// @access  Private (Buyer only)
-const submitProductReview = asyncHandler(async (req, res) => {
-  const { rating, review } = req.body;
-  const orderId = req.params.id;
-  const buyerId = req.user._id;
-
-  // Validate rating
-  if (!rating || rating < 1 || rating > 5) {
-    res.status(400);
-    throw new Error('Rating must be between 1 and 5');
-  }
-
-  // Find the order
-  const order = await Order.findById(orderId).populate('farmer');
-
-  if (!order) {
-    res.status(404);
-    throw new Error('Order not found');
-  }
-
-  // Verify buyer owns this order
-  if (order.buyer.toString() !== buyerId.toString()) {
-    res.status(403);
-    throw new Error('You can only review your own orders');
-  }
-
-  // Check if order is delivered
-  if (order.deliveryStatus !== 'delivered' || order.orderStatus !== 'completed') {
-    res.status(400);
-    throw new Error('You can only review delivered orders');
-  }
-
-  // Check if already reviewed
-  if (order.farmerRating && order.farmerRating.rating) {
-    res.status(400);
-    throw new Error('You have already reviewed this order');
-  }
-
-  // Add review to order
-  order.farmerRating = {
-    rating: Number(rating),
-    review: review || '',
-    createdAt: new Date()
-  };
-
-  await order.save();
-
-  // Update farmer's average rating
-  const farmer = await User.findById(order.farmer._id);
-  
-  // Get all orders with ratings for this farmer
-  const ordersWithRatings = await Order.find({
-    farmer: order.farmer._id,
-    'farmerRating.rating': { $exists: true, $ne: null }
-  });
-
-  // Calculate new average
-  const totalRatings = ordersWithRatings.length;
-  const sumRatings = ordersWithRatings.reduce((sum, o) => sum + (o.farmerRating.rating || 0), 0);
-  const averageRating = totalRatings > 0 ? sumRatings / totalRatings : 0;
-
-  // Update farmer's rating
-  farmer.rating = {
-    average: Number(averageRating.toFixed(1)),
-    count: totalRatings
-  };
-
-  await farmer.save();
-
-  res.json({
-    success: true,
-    message: 'Review submitted successfully',
-    data: {
-      order,
-      farmerRating: {
-        average: farmer.rating.average,
-        count: farmer.rating.count
-      }
-    }
   });
 });
 
@@ -478,6 +396,5 @@ module.exports = {
   getOrder,
   updateOrderStatus,
   getBuyerStats,
-  getTransporterStats,
-  submitProductReview
+  getTransporterStats
 };
