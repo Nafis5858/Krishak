@@ -500,7 +500,7 @@ export default function CreateListing() {
         <div className="text-center">
           <p className="text-sm text-gray-600 mb-2">Your Selling Price</p>
           <p className="text-4xl font-bold text-green-600">
-            ৳{formData.sellingPrice || '0.00'}
+            a��{formData.sellingPrice || '0.00'}
           </p>
           <p className="text-sm text-gray-500 mt-1">per {formData.unit}</p>
         </div>
