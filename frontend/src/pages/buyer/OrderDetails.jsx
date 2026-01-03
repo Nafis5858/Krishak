@@ -24,16 +24,21 @@ const OrderDetails = () => {
   const [showReviewForm, setShowReviewForm] = useState(false);
   const [canReview, setCanReview] = useState(false);
   const [hasReviewed, setHasReviewed] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
   
   // Only buyers can review
   const isBuyer = user?.role === 'buyer';
 
   useEffect(() => {
     fetchOrderDetails();
-    // Set up polling for live updates every 10 seconds
-    const interval = setInterval(fetchOrderDetails, 10000);
+    // Set up polling for live updates every 10 seconds (only if no connection errors)
+    const interval = setInterval(() => {
+      if (!connectionError) {
+        fetchOrderDetails(true); // silent fetch
+      }
+    }, 10000);
     return () => clearInterval(interval);
-  }, [orderId]);
+  }, [orderId, connectionError]);
 
   useEffect(() => {
     if (order) {
@@ -44,7 +49,6 @@ const OrderDetails = () => {
   const checkReviewStatus = async () => {
     try {
       const response = await reviewService.checkCanReview(orderId);
-      console.log('Review status check response:', response);
       setCanReview(response.canReview);
       setHasReviewed(response.hasReviewed);
       
@@ -55,27 +59,32 @@ const OrderDetails = () => {
         }
       }
     } catch (error) {
-      console.error('Error checking review status:', error);
-      // Fallback: if order is completed/delivered locally, allow review
+      // Silently handle - use fallback logic below
+      // If API fails, check local order state
       if (order && (order.orderStatus === 'completed' || order.deliveryStatus === 'delivered')) {
         setCanReview(true);
       }
     }
   };
 
-  const fetchOrderDetails = async () => {
+  const fetchOrderDetails = async (silent = false) => {
     try {
       const response = await orderService.getOrderById(orderId);
       // API returns { success: true, data: order }
       const orderData = response.data || response;
-      console.log('📦 Order data received:', orderData);
       setOrder(orderData);
       setError('');
+      setConnectionError(false); // Reset on success
     } catch (err) {
-      setError(err.message || 'Failed to load order details');
-      console.error('❌ Error fetching order:', err);
+      // Stop polling on network errors
+      if (err.message?.includes('Network Error') || err.code === 'ERR_CONNECTION_REFUSED') {
+        setConnectionError(true);
+      }
+      if (!silent) {
+        setError(err.message || 'Failed to load order details');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
@@ -206,7 +215,7 @@ const OrderDetails = () => {
               <div className="p-6">
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                   {/* Pickup Photo */}
-                  {order.deliveryInfo?.pickupPhoto?.url && (
+                  {order.deliveryInfo?.pickupPhoto?.url ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
                         <Image className="w-4 h-4 text-green-600" />
@@ -218,8 +227,7 @@ const OrderDetails = () => {
                           alt="Pickup verification"
                           className="w-full h-48 object-cover rounded-lg border border-gray-200"
                           onError={(e) => {
-                            console.error('Pickup photo load error:', e.target.src);
-                            e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="%23f3f4f6"/><text x="50%" y="50%" text-anchor="middle" fill="%239ca3af">Image not available</text></svg>';
+                            e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="%23f3f4f6"/><text x="50%" y="50%" text-anchor="middle" fill="%239ca3af" font-size="14">Photo unavailable</text></svg>';
                           }}
                         />
                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
@@ -237,10 +245,24 @@ const OrderDetails = () => {
                         Uploaded: {order.deliveryInfo.pickupPhoto.uploadedAt ? new Date(order.deliveryInfo.pickupPhoto.uploadedAt).toLocaleString() : 'N/A'}
                       </p>
                     </div>
-                  )}
+                  ) : order.deliveryStatus === 'picked' || order.deliveryStatus === 'in_transit' || order.deliveryStatus === 'delivered' ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <Image className="w-4 h-4 text-gray-400" />
+                        Pickup Verification
+                      </div>
+                      <div className="w-full h-48 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center">
+                        <div className="text-center p-4">
+                          <Camera className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-600">Photo not available</p>
+                          <p className="text-xs text-gray-400 mt-1">Transporter did not upload pickup photo</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
 
                   {/* Delivery Proof Photo */}
-                  {order.deliveryInfo?.deliveryProofPhoto?.url && (
+                  {order.deliveryInfo?.deliveryProofPhoto?.url ? (
                     <div className="space-y-2">
                       <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
                         <CheckCircle className="w-4 h-4 text-blue-600" />
@@ -252,8 +274,7 @@ const OrderDetails = () => {
                           alt="Delivery proof"
                           className="w-full h-48 object-cover rounded-lg border border-gray-200"
                           onError={(e) => {
-                            console.error('Delivery photo load error:', e.target.src);
-                            e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="%23f3f4f6"/><text x="50%" y="50%" text-anchor="middle" fill="%239ca3af">Image not available</text></svg>';
+                            e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="%23f3f4f6"/><text x="50%" y="50%" text-anchor="middle" fill="%239ca3af" font-size="14">Photo unavailable</text></svg>';
                           }}
                         />
                         <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-30 transition-all rounded-lg flex items-center justify-center">
@@ -271,7 +292,21 @@ const OrderDetails = () => {
                         Uploaded: {order.deliveryInfo.deliveryProofPhoto.uploadedAt ? new Date(order.deliveryInfo.deliveryProofPhoto.uploadedAt).toLocaleString() : 'N/A'}
                       </p>
                     </div>
-                  )}
+                  ) : order.deliveryStatus === 'delivered' ? (
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-sm font-medium text-gray-700">
+                        <CheckCircle className="w-4 h-4 text-gray-400" />
+                        Delivery Proof
+                      </div>
+                      <div className="w-full h-48 rounded-lg border-2 border-dashed border-gray-300 bg-gray-50 flex items-center justify-center">
+                        <div className="text-center p-4">
+                          <Camera className="w-8 h-8 text-gray-400 mx-auto mb-2" />
+                          <p className="text-sm text-gray-600">Photo not uploaded</p>
+                          <p className="text-xs text-gray-400 mt-1">Optional - Transporter chose not to upload</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null}
                 </div>
               </div>
             </Card>

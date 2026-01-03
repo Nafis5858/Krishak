@@ -39,7 +39,15 @@ router.post('/jobs/:orderId/photo', upload.single('photo'), async (req, res) => 
       });
     }
 
-    // Return the photo URL
+    // Log file details for debugging
+    console.log('📸 Photo uploaded:', {
+      originalname: req.file.originalname,
+      mimetype: req.file.mimetype,
+      filename: req.file.filename,
+      size: req.file.size
+    });
+
+    // Return the photo URL using the actual saved filename
     const photoUrl = `/uploads/deliveries/${req.file.filename}`;
     
     res.json({
@@ -49,6 +57,7 @@ router.post('/jobs/:orderId/photo', upload.single('photo'), async (req, res) => 
       }
     });
   } catch (error) {
+    console.error('❌ Photo upload error:', error);
     res.status(500).json({
       success: false,
       message: error.message

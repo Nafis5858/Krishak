@@ -37,14 +37,15 @@ const createOrder = asyncHandler(async (req, res) => {
       throw new Error('This product does not support pre-orders');
     }
 
-    // Check minimum order quantity (MOQ)
-    if (quantity < product.moq) {
-      throw new Error(`Minimum order quantity is ${product.moq} ${product.unit}. You requested ${quantity} ${product.unit}`);
-    }
-
-    // Check quantity availability
+    // Check quantity availability first
     if (quantity > product.quantity) {
       throw new Error(`Insufficient stock. Available: ${product.quantity} ${product.unit}, Requested: ${quantity} ${product.unit}`);
+    }
+
+    // Check minimum order quantity (MOQ) only if there's enough stock to meet MOQ
+    // If remaining stock is less than MOQ, allow ordering whatever is available
+    if (product.quantity >= product.moq && quantity < product.moq) {
+      throw new Error(`Minimum order quantity is ${product.moq} ${product.unit}. You requested ${quantity} ${product.unit}`);
     }
 
     // Calculate total price
@@ -110,11 +111,8 @@ const createOrder = asyncHandler(async (req, res) => {
       if (newQuantity <= 0) {
         product.status = 'sold';
         console.log(`✅ Product ${product._id} marked as SOLD (quantity: ${newQuantity})`);
-      } else if (newQuantity < product.moq) {
-        // If remaining quantity is less than MOQ, mark as sold (can't fulfill minimum orders)
-        product.status = 'sold';
-        console.log(`✅ Product ${product._id} marked as SOLD (quantity ${newQuantity} < MOQ ${product.moq})`);
       } else {
+        // Keep product as 'approved' even if below MOQ - buyers can still purchase remaining stock
         console.log(`✅ Product ${product._id} quantity updated: ${product.quantity + quantity} → ${newQuantity} ${product.unit}`);
       }
     }
