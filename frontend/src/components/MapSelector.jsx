@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
-import { X, MapPin, Search } from 'lucide-react';
+import { X, MapPin, Search, Navigation, ZoomIn, ZoomOut, Maximize2, Locate } from 'lucide-react';
 import { Button } from './Button';
-import { MapContainer, TileLayer, Marker, useMapEvents } from 'react-leaflet';
+import { MapContainer, TileLayer, Marker, useMapEvents, useMap, Circle, Popup } from 'react-leaflet';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
 
@@ -23,15 +23,19 @@ function MapClickHandler({ onMapClick }) {
   return null;
 }
 
-// Component to update map center when coordinates change
-function MapUpdater({ center, zoom }) {
-  const map = useMapEvents({});
+// Component to fly to new coordinates when they change
+function FlyToLocation({ center, zoom, triggerKey }) {
+  const map = useMap();
   
   useEffect(() => {
     if (center && center[0] && center[1]) {
-      map.setView(center, zoom || map.getZoom());
+      console.log('🚀 Flying to:', center, 'zoom:', zoom, 'trigger:', triggerKey);
+      map.flyTo(center, zoom, {
+        animate: true,
+        duration: 1.5
+      });
     }
-  }, [center, zoom, map]);
+  }, [center[0], center[1], zoom, triggerKey]); // Include triggerKey to force update
   
   return null;
 }
@@ -47,9 +51,13 @@ const MapSelector = ({ onSelect, onClose }) => {
   const [searchResults, setSearchResults] = useState([]);
   const [showSearchResults, setShowSearchResults] = useState(false);
   const [mapZoom, setMapZoom] = useState(7); // Zoom level to show all of Bangladesh
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [userLocation, setUserLocation] = useState(null);
+  const [flyToKey, setFlyToKey] = useState(0); // Key to force fly to update
+  const mapRef = useRef(null);
 
+  // Get user's current location on mount ONLY
   useEffect(() => {
-    // Get user's current location if available, but keep wider view
     if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         (position) => {
@@ -57,12 +65,13 @@ const MapSelector = ({ onSelect, onClose }) => {
             lat: position.coords.latitude,
             lng: position.coords.longitude
           };
+          setUserLocation(newCoords);
           setCoordinates(newCoords);
-          setMapZoom(13); // Zoom in when user location is found
+          setMapZoom(13);
+          setFlyToKey(prev => prev + 1);
           reverseGeocode(newCoords.lat, newCoords.lng);
         },
         () => {
-          // Use center of Bangladesh if geolocation fails
           console.log('Using center of Bangladesh');
           reverseGeocode(coordinates.lat, coordinates.lng);
         }
@@ -71,8 +80,10 @@ const MapSelector = ({ onSelect, onClose }) => {
       reverseGeocode(coordinates.lat, coordinates.lng);
     }
     setMapReady(true);
+  }, []); // Empty dependency - only run on mount!
 
-    // Close search results when clicking outside
+  // Close search results when clicking outside (separate effect)
+  useEffect(() => {
     const handleClickOutside = (e) => {
       if (showSearchResults && !e.target.closest('.search-container')) {
         setShowSearchResults(false);
@@ -85,12 +96,19 @@ const MapSelector = ({ onSelect, onClose }) => {
   const reverseGeocode = async (lat, lng) => {
     try {
       setLoading(true);
-      // Using Nominatim (OpenStreetMap) for reverse geocoding
+      // Using Nominatim (OpenStreetMap) for reverse geocoding with English language preference
       const response = await fetch(
-        `https://nominatim.openstreetmap.org/reverse?format=json&lat=${lat}&lon=${lng}`,
+        `https://nominatim.openstreetmap.org/reverse?` +
+        `format=json&` +
+        `lat=${lat}&` +
+        `lon=${lng}&` +
+        `accept-language=en,bn&` +
+        `zoom=18&` +
+        `addressdetails=1`,
         {
           headers: {
-            'User-Agent': 'Krishak-App'
+            'User-Agent': 'Krishak-App',
+            'Accept-Language': 'en-US,en;q=0.9,bn;q=0.8'
           }
         }
       );
@@ -127,7 +145,7 @@ const MapSelector = ({ onSelect, onClose }) => {
   };
 
   const searchLocation = async (query) => {
-    if (!query || query.trim().length < 3) {
+    if (!query || query.trim().length < 2) {
       setSearchResults([]);
       setShowSearchResults(false);
       return;
@@ -135,25 +153,112 @@ const MapSelector = ({ onSelect, onClose }) => {
 
     try {
       setSearching(true);
-      const response = await fetch(
-        `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=5&addressdetails=1`,
-        {
-          headers: {
-            'User-Agent': 'Krishak-App'
-          }
-        }
-      );
-      const data = await response.json();
+      console.log('🔍 Searching for:', query);
+      const searchQuery = query.trim();
       
+      // Bangladesh bounding box for more accurate results
+      // Format: left,top,right,bottom (min_lon, max_lat, max_lon, min_lat)
+      const bdViewbox = '88.0,26.6,92.7,20.7';
+      
+      // Build comprehensive search URL with all Nominatim options for precise search
+      // This enables finding specific roads, avenues, house numbers, etc.
+      const url1 = `https://nominatim.openstreetmap.org/search?` +
+        `format=json&` +
+        `q=${encodeURIComponent(searchQuery)}&` +
+        `countrycodes=bd&` +
+        `viewbox=${bdViewbox}&` +
+        `bounded=0&` + // Don't strictly bound, but prefer viewbox
+        `limit=15&` +
+        `addressdetails=1&` +
+        `namedetails=1&` + // Get alternative names
+        `extratags=1&` + // Get extra tags like website, phone
+        `dedupe=1&` + // Remove duplicates
+        `accept-language=en,bn`;
+      
+      console.log('🌐 API URL:', url1);
+      
+      const response = await fetch(url1, {
+        headers: {
+          'User-Agent': 'Krishak-App',
+          'Accept-Language': 'en-US,en;q=0.9,bn;q=0.8'
+        }
+      });
+      let data = await response.json();
+      console.log('✅ Search results (attempt 1):', data.length, 'results');
+      
+      // If limited results, try alternative searches
+      if (data.length < 3) {
+        console.log('🔄 Trying enhanced search...');
+        
+        // Try with "Dhaka" appended if not already present (most addresses are in Dhaka)
+        const dhakaQuery = searchQuery.toLowerCase().includes('dhaka') 
+          ? searchQuery 
+          : `${searchQuery}, Dhaka`;
+          
+        const url2 = `https://nominatim.openstreetmap.org/search?` +
+          `format=json&` +
+          `q=${encodeURIComponent(dhakaQuery)}&` +
+          `countrycodes=bd&` +
+          `limit=10&` +
+          `addressdetails=1&` +
+          `namedetails=1&` +
+          `accept-language=en,bn`;
+        
+        const response2 = await fetch(url2, {
+          headers: {
+            'User-Agent': 'Krishak-App',
+            'Accept-Language': 'en-US,en;q=0.9,bn;q=0.8'
+          }
+        });
+        const data2 = await response2.json();
+        console.log('✅ Enhanced search results:', data2.length, 'results');
+        
+        // Merge results, avoiding duplicates by place_id
+        const existingIds = new Set(data.map(d => d.place_id));
+        const newResults = data2.filter(d => !existingIds.has(d.place_id));
+        data = [...data, ...newResults];
+      }
+      
+      // If still no results, try with Bangladesh suffix
+      if (data.length === 0 && !searchQuery.toLowerCase().includes('bangladesh')) {
+        console.log('🔄 Trying fallback with Bangladesh suffix...');
+        const url3 = `https://nominatim.openstreetmap.org/search?` +
+          `format=json&` +
+          `q=${encodeURIComponent(searchQuery + ', Bangladesh')}&` +
+          `limit=15&` +
+          `addressdetails=1&` +
+          `namedetails=1&` +
+          `accept-language=en,bn`;
+        
+        const response3 = await fetch(url3, {
+          headers: {
+            'User-Agent': 'Krishak-App',
+            'Accept-Language': 'en-US,en;q=0.9,bn;q=0.8'
+          }
+        });
+        data = await response3.json();
+        console.log('✅ Fallback results:', data.length, 'results');
+      }
+      
+      // Sort results by importance/relevance
       if (data && data.length > 0) {
-        setSearchResults(data);
+        data.sort((a, b) => {
+          // Prioritize results with higher importance
+          const impA = parseFloat(a.importance) || 0;
+          const impB = parseFloat(b.importance) || 0;
+          return impB - impA;
+        });
+        
+        console.log('✅ Setting search results and showing dropdown...');
+        setSearchResults(data.slice(0, 12)); // Limit to 12 best results
         setShowSearchResults(true);
       } else {
+        console.log('❌ No results found');
         setSearchResults([]);
         setShowSearchResults(false);
       }
     } catch (error) {
-      console.error('Location search error:', error);
+      console.error('❌ Location search error:', error);
       setSearchResults([]);
       setShowSearchResults(false);
     } finally {
@@ -169,16 +274,24 @@ const MapSelector = ({ onSelect, onClose }) => {
     clearTimeout(window.searchTimeout);
     window.searchTimeout = setTimeout(() => {
       searchLocation(value);
-    }, 500);
+    }, 300);
   };
 
   const handleSelectSearchResult = (result) => {
+    console.log('📍 Selected result:', result.display_name);
+    console.log('📍 Coordinates:', result.lat, result.lon);
+    
     const newCoords = {
       lat: parseFloat(result.lat),
       lng: parseFloat(result.lon)
     };
+    
+    console.log('📍 Setting new coordinates:', newCoords);
+    
+    // Update state to trigger map fly
     setCoordinates(newCoords);
-    setMapZoom(14); // Zoom in when location is selected
+    setMapZoom(16); // Zoom in closer when location is selected
+    setFlyToKey(prev => prev + 1); // Force the FlyToLocation to trigger
     setSearchQuery(result.display_name);
     setShowSearchResults(false);
     setSearchResults([]);
@@ -198,7 +311,8 @@ const MapSelector = ({ onSelect, onClose }) => {
       lng: latlng.lng
     };
     setCoordinates(newCoords);
-    setMapZoom(14); // Zoom in when user clicks on map
+    setMapZoom(16); // Zoom in when user clicks on map
+    setFlyToKey(prev => prev + 1); // Force the FlyToLocation to trigger
     reverseGeocode(newCoords.lat, newCoords.lng);
   };
 
@@ -216,28 +330,79 @@ const MapSelector = ({ onSelect, onClose }) => {
     onSelect(coordinates, address || `${coordinates.lat}, ${coordinates.lng}`);
   };
 
+  const handleGetCurrentLocation = () => {
+    if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        (position) => {
+          const newCoords = {
+            lat: position.coords.latitude,
+            lng: position.coords.longitude
+          };
+          setUserLocation(newCoords);
+          setCoordinates(newCoords);
+          setMapZoom(16);
+          setFlyToKey(prev => prev + 1); // Force fly to
+          reverseGeocode(newCoords.lat, newCoords.lng);
+        },
+        (error) => {
+          console.error('Error getting location:', error);
+          alert('Unable to get your location. Please ensure location permissions are enabled.');
+        }
+      );
+    } else {
+      alert('Geolocation is not supported by your browser.');
+    }
+  };
+
+  const handleZoomIn = () => {
+    setMapZoom(prev => Math.min(prev + 1, 18));
+    setFlyToKey(prev => prev + 1);
+  };
+
+  const handleZoomOut = () => {
+    setMapZoom(prev => Math.max(prev - 1, 6));
+    setFlyToKey(prev => prev + 1);
+  };
+
+  const toggleFullscreen = () => {
+    setIsFullscreen(!isFullscreen);
+  };
+
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-      <div className="bg-white rounded-lg max-w-4xl w-full max-h-[90vh] overflow-auto">
-        <div className="sticky top-0 bg-white border-b p-4 flex justify-between items-center z-10">
-          <h2 className="text-xl font-semibold flex items-center">
-            <MapPin className="w-5 h-5 mr-2 text-primary-600" />
-            Select Delivery Location on Map
+    <div className="fixed inset-0 bg-black bg-opacity-60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+      <div className={`bg-white rounded-xl shadow-2xl w-full overflow-hidden transition-all duration-300 ${
+        isFullscreen ? 'max-w-full max-h-full' : 'max-w-5xl max-h-[95vh]'
+      }`}>
+        {/* Header */}
+        <div className="sticky top-0 bg-gradient-to-r from-primary-600 to-primary-700 text-white p-5 flex justify-between items-center z-10 shadow-lg">
+          <h2 className="text-2xl font-bold flex items-center">
+            <MapPin className="w-6 h-6 mr-3" />
+            Select Delivery Location
           </h2>
-          <button
-            onClick={onClose}
-            className="text-gray-500 hover:text-gray-700"
-          >
-            <X className="w-6 h-6" />
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={toggleFullscreen}
+              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              title={isFullscreen ? "Exit Fullscreen" : "Fullscreen"}
+            >
+              <Maximize2 className="w-5 h-5" />
+            </button>
+            <button
+              onClick={onClose}
+              className="p-2 hover:bg-white/20 rounded-lg transition-colors"
+              title="Close"
+            >
+              <X className="w-6 h-6" />
+            </button>
+          </div>
         </div>
 
-        <div className="p-4 space-y-4">
+        <div className="p-6 space-y-4 overflow-y-auto" style={{ maxHeight: isFullscreen ? 'calc(100vh - 180px)' : 'calc(95vh - 180px)' }}>
           {/* Search Location */}
           <div className="relative search-container">
             <div className="flex items-center space-x-2">
               <div className="relative flex-1">
-                <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
+                <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 text-gray-400 w-5 h-5" />
                 <input
                   type="text"
                   value={searchQuery}
@@ -247,45 +412,98 @@ const MapSelector = ({ onSelect, onClose }) => {
                       setShowSearchResults(true);
                     }
                   }}
-                  placeholder="Search for a location (e.g., Dhaka, Gulshan, Mirpur)"
-                  className="w-full pl-10 pr-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
+                  placeholder="Search: Road 12 Mirpur, House 45 Gulshan, Dhanmondi 27..."
+                  className="w-full pl-12 pr-12 py-3 border-2 border-gray-300 rounded-xl focus:ring-2 focus:ring-primary-500 focus:border-primary-500 text-base shadow-sm"
                 />
-                {searching && (
-                  <div className="absolute right-3 top-1/2 transform -translate-y-1/2">
-                    <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-primary-600"></div>
+                {searching ? (
+                  <div className="absolute right-4 top-1/2 transform -translate-y-1/2">
+                    <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-primary-600"></div>
                   </div>
-                )}
+                ) : searchQuery ? (
+                  <button
+                    onClick={() => {
+                      setSearchQuery('');
+                      setSearchResults([]);
+                      setShowSearchResults(false);
+                    }}
+                    className="absolute right-4 top-1/2 transform -translate-y-1/2 text-gray-400 hover:text-gray-600"
+                  >
+                    <X className="w-5 h-5" />
+                  </button>
+                ) : null}
               </div>
+              <button
+                onClick={handleGetCurrentLocation}
+                className="flex items-center gap-2 px-4 py-3 bg-primary-600 text-white rounded-xl hover:bg-primary-700 transition-colors shadow-md whitespace-nowrap"
+                title="Use my current location"
+              >
+                <Locate className="w-5 h-5" />
+                <span className="hidden sm:inline">Current Location</span>
+              </button>
             </div>
             
             {/* Search Results Dropdown */}
             {showSearchResults && searchResults.length > 0 && (
-              <div className="absolute z-20 w-full mt-1 bg-white border border-gray-300 rounded-lg shadow-lg max-h-60 overflow-y-auto">
+              <div className="absolute z-[9999] w-full mt-2 bg-white border-2 border-primary-200 rounded-xl shadow-2xl max-h-96 overflow-y-auto">
+                {console.log('🎨 Rendering dropdown with', searchResults.length, 'results')}
                 {searchResults.map((result, index) => {
-                  // Extract main place name (first part before comma)
-                  const mainName = result.display_name.split(',')[0];
-                  // Get city/district name for better identification
-                  const cityName = result.address?.city || result.address?.town || result.address?.municipality || result.address?.district || '';
+                  // Build a smart display name with address components
+                  const addr = result.address || {};
+                  
+                  // Get the primary name (building, road, or first part of display_name)
+                  const primaryName = addr.building || addr.amenity || addr.shop || 
+                    addr.road || addr.neighbourhood || result.display_name.split(',')[0];
+                  
+                  // Build secondary info (area details)
+                  const areaInfo = [
+                    addr.house_number,
+                    addr.road && !primaryName.includes(addr.road) ? addr.road : null,
+                    addr.neighbourhood,
+                    addr.suburb,
+                    addr.city || addr.town || addr.municipality,
+                    addr.district
+                  ].filter(Boolean).join(', ');
+                  
+                  // Get place type for icon/badge
+                  const placeType = result.type || result.class || '';
+                  const getPlaceIcon = () => {
+                    if (['house', 'building', 'residential'].includes(placeType)) return '🏠';
+                    if (['road', 'street', 'avenue'].includes(placeType)) return '🛣️';
+                    if (['shop', 'supermarket', 'mall'].includes(placeType)) return '🏪';
+                    if (['restaurant', 'cafe', 'food'].includes(placeType)) return '🍽️';
+                    if (['hospital', 'clinic', 'doctors'].includes(placeType)) return '🏥';
+                    if (['school', 'university', 'college'].includes(placeType)) return '🎓';
+                    if (['mosque', 'church', 'temple'].includes(placeType)) return '🕌';
+                    if (['park', 'garden'].includes(placeType)) return '🌳';
+                    if (['bank', 'atm'].includes(placeType)) return '🏦';
+                    if (['bus_station', 'bus_stop'].includes(placeType)) return '🚌';
+                    return '📍';
+                  };
                   
                   return (
                     <button
                       key={index}
                       onClick={() => handleSelectSearchResult(result)}
-                      className="w-full text-left px-4 py-3 hover:bg-primary-50 border-b border-gray-100 last:border-b-0 transition-colors"
+                      className="w-full text-left px-5 py-3 hover:bg-primary-50 border-b border-gray-100 last:border-b-0 transition-all duration-200 group"
                     >
                       <div className="flex items-start">
-                        <MapPin className="w-4 h-4 text-primary-600 mr-2 mt-0.5 flex-shrink-0" />
+                        <span className="text-xl mr-3 mt-0.5">{getPlaceIcon()}</span>
                         <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900">
-                            {mainName}
-                            {cityName && cityName !== mainName && (
-                              <span className="text-gray-500 ml-1">({cityName})</span>
-                            )}
+                          <p className="text-base font-semibold text-gray-900 group-hover:text-primary-700">
+                            {primaryName}
                           </p>
-                          <p className="text-xs text-gray-500 truncate">
+                          {areaInfo && (
+                            <p className="text-sm text-gray-600 mt-0.5">
+                              {areaInfo}
+                            </p>
+                          )}
+                          <p className="text-xs text-gray-400 truncate mt-1">
                             {result.display_name}
                           </p>
                         </div>
+                        <span className="text-xs text-gray-400 bg-gray-100 px-2 py-1 rounded capitalize ml-2">
+                          {placeType.replace('_', ' ') || 'place'}
+                        </span>
                       </div>
                     </button>
                   );
@@ -296,7 +514,9 @@ const MapSelector = ({ onSelect, onClose }) => {
 
           {/* Interactive Map */}
           {mapReady && (
-            <div className="w-full h-96 rounded-lg overflow-hidden border-2 border-gray-300 relative">
+            <div className={`w-full rounded-xl overflow-hidden border-4 border-primary-200 shadow-xl relative ${
+              isFullscreen ? 'h-[calc(100vh-400px)]' : 'h-[500px]'
+            }`}>
               <MapContainer
                 center={[coordinates.lat, coordinates.lng]}
                 zoom={mapZoom}
@@ -304,82 +524,99 @@ const MapSelector = ({ onSelect, onClose }) => {
                 maxZoom={18}
                 style={{ height: '100%', width: '100%' }}
                 scrollWheelZoom={true}
-                key={`${coordinates.lat}-${coordinates.lng}-${mapZoom}`}
               >
                 <TileLayer
                   attribution='&copy; <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
                   url="https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png"
                 />
-                <Marker position={[coordinates.lat, coordinates.lng]} />
+                {/* Selected location marker */}
+                <Marker position={[coordinates.lat, coordinates.lng]}>
+                  <Popup>
+                    <div className="text-center">
+                      <p className="font-semibold">Delivery Location</p>
+                      <p className="text-sm text-gray-600">{address || 'Selected point'}</p>
+                    </div>
+                  </Popup>
+                </Marker>
+                {/* User's current location circle (if available) */}
+                {userLocation && (
+                  <Circle
+                    center={[userLocation.lat, userLocation.lng]}
+                    radius={100}
+                    pathOptions={{ color: 'blue', fillColor: 'lightblue', fillOpacity: 0.3 }}
+                  />
+                )}
                 <MapClickHandler onMapClick={handleMapClick} />
-                <MapUpdater center={[coordinates.lat, coordinates.lng]} zoom={mapZoom} />
+                <FlyToLocation 
+                  center={[coordinates.lat, coordinates.lng]} 
+                  zoom={mapZoom} 
+                  triggerKey={flyToKey}
+                />
               </MapContainer>
+              
+              {/* Map Controls Overlay */}
+              <div className="absolute top-4 right-4 flex flex-col gap-2 z-[1000]">
+                <button
+                  onClick={handleZoomIn}
+                  className="bg-white p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors border border-gray-200"
+                  title="Zoom In"
+                >
+                  <ZoomIn className="w-5 h-5 text-gray-700" />
+                </button>
+                <button
+                  onClick={handleZoomOut}
+                  className="bg-white p-3 rounded-lg shadow-lg hover:bg-gray-100 transition-colors border border-gray-200"
+                  title="Zoom Out"
+                >
+                  <ZoomOut className="w-5 h-5 text-gray-700" />
+                </button>
+                <button
+                  onClick={handleGetCurrentLocation}
+                  className="bg-primary-600 p-3 rounded-lg shadow-lg hover:bg-primary-700 transition-colors"
+                  title="Go to my location"
+                >
+                  <Navigation className="w-5 h-5 text-white" />
+                </button>
+              </div>
             </div>
           )}
 
-          {/* Instructions */}
-          <div className="p-3 bg-blue-50 rounded-lg">
-            <p className="text-sm text-blue-800">
-              💡 <strong>How to use:</strong> Search for a location above, then <strong>click on the map</strong> to pin your exact delivery location. You can also enter coordinates manually below.
-            </p>
-          </div>
-
-          {/* Coordinate Input */}
-          <div className="grid grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Latitude
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={coordinates.lat}
-                onChange={(e) => handleCoordinateChange('lat', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                placeholder="23.8103"
-              />
-            </div>
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-1">
-                Longitude
-              </label>
-              <input
-                type="number"
-                step="any"
-                value={coordinates.lng}
-                onChange={(e) => handleCoordinateChange('lng', e.target.value)}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-primary-500 focus:border-primary-500"
-                placeholder="90.4125"
-              />
-            </div>
-          </div>
-
           {/* Address Display */}
           {loading ? (
-            <div className="p-3 bg-gray-50 rounded-lg">
+            <div className="p-4 bg-gray-50 rounded-xl border-2 border-gray-200 animate-pulse">
               <p className="text-sm text-gray-500">Loading address...</p>
             </div>
           ) : address ? (
-            <div className="p-3 bg-green-50 rounded-lg border border-green-200">
-              <p className="text-sm font-medium text-green-900 mb-1">Selected Location:</p>
-              <p className="text-sm text-green-700">{address}</p>
+            <div className="p-4 bg-gradient-to-r from-green-50 to-emerald-50 rounded-xl border-2 border-green-300 shadow-sm">
+              <p className="text-sm font-bold text-green-900 mb-2 flex items-center">
+                <MapPin className="w-4 h-4 mr-2" />
+                Selected Location:
+              </p>
+              <p className="text-base text-green-800 font-medium">{address}</p>
             </div>
           ) : (
-            <div className="p-3 bg-gray-50 rounded-lg">
-              <p className="text-sm text-gray-600">
+            <div className="p-4 bg-gray-50 rounded-xl border-2 border-gray-200">
+              <p className="text-sm text-gray-600 font-medium">
                 Coordinates: {coordinates.lat.toFixed(6)}, {coordinates.lng.toFixed(6)}
               </p>
             </div>
           )}
         </div>
 
-        <div className="sticky bottom-0 bg-white border-t p-4 flex justify-end space-x-3">
-          <Button variant="secondary" onClick={onClose}>
-            Cancel
-          </Button>
-          <Button onClick={handleConfirm}>
-            Confirm Location
-          </Button>
+        {/* Footer with Actions */}
+        <div className="sticky bottom-0 bg-gray-50 border-t-2 border-gray-200 p-5 flex justify-between items-center">
+          <p className="text-sm text-gray-600">
+            Click <strong>Confirm</strong> to use this location
+          </p>
+          <div className="flex gap-3">
+            <Button variant="secondary" onClick={onClose}>
+              Cancel
+            </Button>
+            <Button onClick={handleConfirm} className="px-6">
+              <MapPin className="w-4 h-4 mr-2" />
+              Confirm Location
+            </Button>
+          </div>
         </div>
       </div>
     </div>

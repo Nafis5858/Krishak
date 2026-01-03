@@ -234,7 +234,6 @@ const OrderTracking = ({
                       alt={`${step.label} photo`}
                       className="w-32 h-32 object-cover rounded-lg border border-gray-200 shadow-sm"
                       onError={(e) => {
-                        console.error('Photo load error:', e.target.src);
                         e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect fill="%23f3f4f6"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="12">Photo unavailable</text></svg>';
                       }}
                     />

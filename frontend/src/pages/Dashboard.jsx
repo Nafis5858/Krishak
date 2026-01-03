@@ -4,7 +4,8 @@ import { useAuth } from '../context/AuthContext';
 import { useCart } from '../context/CartContext';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
-import { User, ShoppingCart, Truck, Shield, RefreshCw } from 'lucide-react';
+import { Loading } from '../components/Loading';
+import { User, ShoppingCart, Truck, Shield, RefreshCw, ArrowRight, MapPin } from 'lucide-react';
 import { getProducts, getFarmerStats } from '../services/productService';
 import { getBuyerStats, getTransporterStats } from '../services/orderService';
 import { toast } from 'react-toastify';
@@ -277,103 +278,116 @@ export const Dashboard = () => {
 
             {/* Featured Products */}
             <Card>
-              <div className="flex justify-between items-center mb-4">
-                <h2 className="text-xl font-semibold">Featured Products</h2>
-                <Link to="/browse-products" className="text-primary-600 hover:text-primary-700 text-sm font-medium">
-                  View All →
+              <div className="flex justify-between items-center mb-6">
+                <h2 className="text-2xl font-bold text-gray-900">Featured Products</h2>
+                <Link to="/browse-products" className="text-primary-600 hover:text-primary-700 font-medium flex items-center gap-1">
+                  View All <ArrowRight className="w-4 h-4" />
                 </Link>
               </div>
 
               {loading ? (
-                <div className="text-center py-8">Loading products...</div>
+                <div className="text-center py-12"><Loading /></div>
               ) : products.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                   {products.map((product) => (
-                    <div key={product._id} className="border rounded-lg p-4 hover:shadow-md transition-shadow">
-                      <div className="flex justify-between items-start mb-2">
-                        <h3 className="font-semibold text-lg">{product.cropName}</h3>
-                        <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
-                          Grade {product.grade}
-                        </span>
-                      </div>
-
-                      <p className="text-gray-600 text-sm mb-2">
-                        {product.location.village}, {product.location.district}
-                      </p>
-
-                      <div className="flex justify-between items-center mb-3">
-                        <span className="text-2xl font-bold text-primary-600">
-                          ৳{product.sellingPrice}/{product.unit}
-                        </span>
-                        <span className="text-sm text-gray-500">
-                          {product.quantity} {product.unit} available
-                        </span>
-                      </div>
-
-                      {/* Cost Breakdown for Buyers */}
-                      {product.costBreakdown && (
-                        <div className="bg-gray-50 p-3 rounded mb-3">
-                          <h4 className="font-medium text-sm mb-2">Cost Breakdown</h4>
-                          <div className="grid grid-cols-2 gap-2 text-xs">
-                            <div>Seed: ৳{product.costBreakdown.seedCost || 0}</div>
-                            <div>Fertilizer: ৳{product.costBreakdown.fertilizerCost || 0}</div>
-                            <div>Labor: ৳{product.costBreakdown.laborCost || 0}</div>
-                            <div>Transport: ৳{product.costBreakdown.transportCost || 0}</div>
+                    <div key={product._id} className="border border-gray-200 rounded-lg overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-1">
+                      {/* Product Image */}
+                      {product.photos && product.photos.length > 0 ? (
+                        <div className="w-full h-48 overflow-hidden group">
+                          <img
+                            src={`http://localhost:5000${product.photos[0]}`}
+                            alt={product.cropName}
+                            className="w-full h-48 object-cover transition-transform duration-300 group-hover:scale-110"
+                            onError={(e) => {
+                              e.target.style.display = 'none';
+                              const placeholder = e.target.parentElement.querySelector('.image-placeholder');
+                              if (placeholder) placeholder.style.display = 'flex';
+                            }}
+                          />
+                          <div className="image-placeholder hidden w-full h-48 bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center">
+                            <span className="text-7xl opacity-60">🌾</span>
                           </div>
-                          <div className="mt-2 pt-2 border-t text-xs">
-                            <div className="flex justify-between">
-                              <span>Total Cost:</span>
-                              <span>৳{(product.costBreakdown.seedCost + product.costBreakdown.fertilizerCost + product.costBreakdown.laborCost + product.costBreakdown.transportCost + (product.costBreakdown.otherCost || 0)).toFixed(2)}</span>
+                        </div>
+                      ) : (
+                        <div className="w-full h-48 bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center">
+                          <span className="text-7xl opacity-60">🌾</span>
+                        </div>
+                      )}
+
+                      <div className="p-5">
+                        <div className="flex justify-between items-start mb-2">
+                          <h3 className="text-xl font-bold text-gray-900 flex-1">{product.cropName}</h3>
+                          <span className="text-xs font-semibold bg-gradient-to-r from-green-500 to-green-600 text-white px-3 py-1.5 rounded-full shadow-sm">
+                            Grade {product.grade}
+                          </span>
+                        </div>
+
+                        <div className="flex items-center text-gray-600 text-sm mb-3">
+                          <MapPin className="w-4 h-4 mr-2 text-red-500" />
+                          <span className="font-medium">
+                            {product.location.village}, {product.location.district}
+                          </span>
+                        </div>
+
+                        <div className="flex justify-between items-end mb-3 pb-3 border-b border-gray-100">
+                          <div>
+                            <div className="text-xs text-gray-500 mb-1 font-medium">Price</div>
+                            <div>
+                              <span className="text-3xl font-bold text-primary-600">
+                                ৳{product.sellingPrice}
+                              </span>
+                              <span className="text-gray-500 text-base ml-1 font-medium">/{product.unit}</span>
                             </div>
-                            {product.calculatedPrice && (
-                              <div className="flex justify-between text-green-600">
-                                <span>Farmer Earnings:</span>
-                                <span>৳{(product.sellingPrice - (product.costBreakdown.seedCost + product.costBreakdown.fertilizerCost + product.costBreakdown.laborCost + product.costBreakdown.transportCost + (product.costBreakdown.otherCost || 0)) / product.quantity).toFixed(2)}/{product.unit}</span>
+                          </div>
+                          <div className="text-right">
+                            <div className="text-xs text-gray-500 mb-1">Available</div>
+                            <span className="text-sm font-bold text-gray-700">
+                              {product.quantity} {product.unit}
+                            </span>
+                          </div>
+                        </div>
+
+                        {/* Price Comparison - Only show market comparison, not cost breakdown */}
+                        {product.calculatedPrice && (
+                          <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-lg mb-3 border border-blue-100">
+                            <h4 className="font-semibold text-sm mb-2 text-gray-700">Market Price Comparison</h4>
+                            <div className="grid grid-cols-3 gap-3">
+                              <div className="text-center">
+                                <div className="text-xs font-medium text-gray-500 mb-1">Wholesale</div>
+                                <div className="text-sm font-bold text-gray-700 bg-white py-2 rounded-md shadow-sm">৳{((product.calculatedPrice.suggestedPrice || product.sellingPrice) * 0.8).toFixed(0)}</div>
                               </div>
-                            )}
-                          </div>
-                        </div>
-                      )}
-
-                      {/* Price Comparison */}
-                      {product.calculatedPrice && (
-                        <div className="bg-blue-50 p-3 rounded">
-                          <h4 className="font-medium text-sm mb-2">Price Comparison</h4>
-                          <div className="grid grid-cols-3 gap-2 text-xs text-center">
-                            <div>
-                              <div className="font-medium">Wholesale</div>
-                              <div>৳{(product.calculatedPrice.suggestedPrice * 0.8).toFixed(2)}</div>
-                            </div>
-                            <div className="font-semibold text-blue-600">
-                              <div className="font-medium">You Pay</div>
-                              <div>৳{product.sellingPrice}</div>
-                            </div>
-                            <div>
-                              <div className="font-medium">Retail</div>
-                              <div>৳{(product.calculatedPrice.suggestedPrice * 1.2).toFixed(2)}</div>
+                              <div className="text-center">
+                                <div className="text-xs font-medium text-blue-600 mb-1">You Pay</div>
+                                <div className="text-base font-bold text-blue-600 bg-white py-2 rounded-md shadow-md border-2 border-blue-500">৳{product.sellingPrice}</div>
+                              </div>
+                              <div className="text-center">
+                                <div className="text-xs font-medium text-gray-500 mb-1">Retail</div>
+                                <div className="text-sm font-bold text-gray-700 bg-white py-2 rounded-md shadow-sm">৳{((product.calculatedPrice.suggestedPrice || product.sellingPrice) * 1.2).toFixed(0)}</div>
+                              </div>
                             </div>
                           </div>
-                        </div>
-                      )}
-
-                      <div className="flex space-x-2 mt-3">
-                        <button
-                          onClick={() => {
-                            addToCart(product, 1);
-                            toast.success(`${product.cropName} added to cart!`);
-                          }}
-                          className="flex-1 bg-primary-600 text-white py-2 px-4 rounded hover:bg-primary-700 transition"
-                        >
-                          Add to Cart
-                        </button>
-                        {product.isPreOrder && (
-                          <button
-                            onClick={() => handlePreOrder(product)}
-                            className="bg-green-600 text-white py-2 px-4 rounded hover:bg-green-700 transition"
-                          >
-                            Pre-Order
-                          </button>
                         )}
+
+                        <div className="flex space-x-2 mt-2 pt-2 border-t border-gray-100">
+                          <Button
+                            onClick={() => {
+                              addToCart(product, 1);
+                              toast.success(`${product.cropName} added to cart!`);
+                            }}
+                            className="flex-1"
+                          >
+                            <ShoppingCart className="w-4 h-4 mr-2" />
+                            <span>Add to Cart</span>
+                          </Button>
+                          {product.isPreOrder && (
+                            <Button
+                              variant="secondary"
+                              onClick={() => handlePreOrder(product)}
+                            >
+                              Pre-Order
+                            </Button>
+                          )}
+                        </div>
                       </div>
                     </div>
                   ))}

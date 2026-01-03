@@ -280,14 +280,14 @@ export const BrowseProducts = () => {
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
             {products.map((product) => (
-              <Card key={product._id} className="p-6 hover:shadow-lg transition-shadow">
+              <Card key={product._id} className="overflow-hidden hover:shadow-2xl transition-all duration-300 hover:-translate-y-1 border border-gray-200">
                 {/* Product Image */}
-                <div className="w-full h-48 mb-4 relative">
+                <div className="w-full h-56 relative overflow-hidden group">
                   {product.photos && product.photos.length > 0 ? (
                     <img
                       src={`http://localhost:5000${product.photos[0]}`}
                       alt={product.cropName}
-                      className="w-full h-48 object-cover rounded-lg"
+                      className="w-full h-56 object-cover transition-transform duration-300 group-hover:scale-110"
                       onError={(e) => {
                         // Hide image and show placeholder on error
                         e.target.style.display = 'none';
@@ -296,33 +296,33 @@ export const BrowseProducts = () => {
                       }}
                     />
                   ) : null}
-                  <div className={`image-placeholder w-full h-48 bg-gray-200 rounded-lg flex items-center justify-center ${product.photos && product.photos.length > 0 ? 'hidden' : ''}`}>
-                    <span className="text-6xl">🌾</span>
+                  <div className={`image-placeholder w-full h-56 bg-gradient-to-br from-green-100 to-green-200 flex items-center justify-center ${product.photos && product.photos.length > 0 ? 'hidden' : ''}`}>
+                    <span className="text-7xl opacity-60">🌾</span>
                   </div>
                 </div>
 
                 {/* Product Info */}
-                <div className="mb-4">
+                <div className="p-5">
                   <div className="flex justify-between items-start mb-2">
-                    <h3 className="text-xl font-semibold text-gray-900">{product.cropName}</h3>
-                    <span className="text-sm bg-green-100 text-green-800 px-2 py-1 rounded">
+                    <h3 className="text-2xl font-bold text-gray-900 flex-1">{product.cropName}</h3>
+                    <span className="text-xs font-semibold bg-gradient-to-r from-green-500 to-green-600 text-white px-3 py-1.5 rounded-full shadow-sm">
                       Grade {product.grade}
                     </span>
                   </div>
 
                   {/* Farmer Info with Rating */}
                   {product.farmer && (
-                    <div className="flex items-center gap-2 mb-2 text-sm">
-                      <User className="w-4 h-4 text-gray-500" />
-                      <span className="text-gray-700 font-medium">{product.farmer.name}</span>
+                    <div className="flex items-center gap-2 mb-2 text-sm bg-gray-50 p-2 rounded-lg">
+                      <User className="w-4 h-4 text-primary-600" />
+                      <span className="text-gray-700 font-semibold">{product.farmer.name}</span>
                       {product.farmer.rating?.count > 0 && (
-                        <div className="flex items-center gap-1">
+                        <div className="flex items-center gap-1 ml-auto">
                           <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                          <span className="font-medium text-gray-700">
+                          <span className="font-bold text-gray-900">
                             {product.farmer.rating.average.toFixed(1)}
                           </span>
                           <span className="text-gray-500 text-xs">
-                            ({product.farmer.rating.count} {product.farmer.rating.count === 1 ? 'review' : 'reviews'})
+                            ({product.farmer.rating.count})
                           </span>
                         </div>
                       )}
@@ -331,54 +331,62 @@ export const BrowseProducts = () => {
 
                   {/* Product Rating */}
                   {product.reviewCount > 0 && (
-                    <div className="flex items-center gap-2 mb-2 text-sm">
-                      <div className="flex items-center gap-1">
+                    <div className="flex items-center gap-2 mb-2">
+                      <div className="flex items-center gap-1 bg-yellow-50 px-3 py-1.5 rounded-full">
                         <Star className="w-4 h-4 text-yellow-500 fill-current" />
-                        <span className="font-medium text-gray-700">
+                        <span className="font-bold text-gray-900 text-sm">
                           {product.averageRating?.toFixed(1) || '0.0'}
                         </span>
-                        <span className="text-gray-500 text-xs">
-                          ({product.reviewCount} {product.reviewCount === 1 ? 'review' : 'reviews'})
+                        <span className="text-gray-600 text-xs">
+                          ({product.reviewCount})
                         </span>
                       </div>
                     </div>
                   )}
 
-                  <div className="flex items-center text-gray-600 text-sm mb-2">
-                    <MapPin className="w-4 h-4 mr-1" />
-                    {product.location?.village && `${product.location.village}, `}
-                    {product.location?.thana && `${product.location.thana}, `}
-                    {product.location?.district}
+                  <div className="flex items-center text-gray-600 text-sm mb-3">
+                    <MapPin className="w-4 h-4 mr-2 text-red-500" />
+                    <span className="font-medium">
+                      {product.location?.village && `${product.location.village}, `}
+                      {product.location?.thana && `${product.location.thana}, `}
+                      {product.location?.district}
+                    </span>
                   </div>
 
-                  <div className="flex justify-between items-center mb-3">
+                  <div className="flex justify-between items-end mb-3 pb-3 border-b border-gray-100">
                     <div>
-                      <span className="text-2xl font-bold text-primary-600">
-                        ৳{product.sellingPrice?.toLocaleString()}
-                      </span>
-                      <span className="text-gray-600 text-sm ml-1">/{product.unit || 'kg'}</span>
+                      <div className="text-xs text-gray-500 mb-1 font-medium">Price</div>
+                      <div>
+                        <span className="text-3xl font-bold text-primary-600">
+                          ৳{product.sellingPrice?.toLocaleString()}
+                        </span>
+                        <span className="text-gray-500 text-base ml-1 font-medium">/{product.unit || 'kg'}</span>
+                      </div>
                     </div>
-                    <span className="text-sm text-gray-500">
-                      {product.quantity} {product.unit || 'kg'} available
-                    </span>
+                    <div className="text-right">
+                      <div className="text-xs text-gray-500 mb-1">Available</div>
+                      <span className="text-sm font-bold text-gray-700">
+                        {product.quantity} {product.unit || 'kg'}
+                      </span>
+                    </div>
                   </div>
 
                   {/* Price Comparison (if available) */}
                   {product.calculatedPrice && (
-                    <div className="bg-blue-50 p-3 rounded mb-3">
-                      <h4 className="font-medium text-sm mb-2">Price Comparison</h4>
-                      <div className="grid grid-cols-3 gap-2 text-xs text-center">
-                        <div>
-                          <div className="font-medium">Wholesale</div>
-                          <div>৳{((product.calculatedPrice.suggestedPrice || product.sellingPrice) * 0.8).toFixed(2)}</div>
+                    <div className="bg-gradient-to-r from-blue-50 to-indigo-50 p-3 rounded-lg mb-3 border border-blue-100">
+                      <h4 className="font-semibold text-sm mb-2 text-gray-700">Price Comparison</h4>
+                      <div className="grid grid-cols-3 gap-3">
+                        <div className="text-center">
+                          <div className="text-xs font-medium text-gray-500 mb-1">Wholesale</div>
+                          <div className="text-sm font-bold text-gray-700 bg-white py-2 rounded-md shadow-sm">৳{((product.calculatedPrice.suggestedPrice || product.sellingPrice) * 0.8).toFixed(0)}</div>
                         </div>
-                        <div className="font-semibold text-blue-600">
-                          <div className="font-medium">You Pay</div>
-                          <div>৳{product.sellingPrice}</div>
+                        <div className="text-center">
+                          <div className="text-xs font-medium text-blue-600 mb-1">You Pay</div>
+                          <div className="text-base font-bold text-blue-600 bg-white py-2 rounded-md shadow-md border-2 border-blue-500">৳{product.sellingPrice}</div>
                         </div>
-                        <div>
-                          <div className="font-medium">Retail</div>
-                          <div>৳{((product.calculatedPrice.suggestedPrice || product.sellingPrice) * 1.2).toFixed(2)}</div>
+                        <div className="text-center">
+                          <div className="text-xs font-medium text-gray-500 mb-1">Retail</div>
+                          <div className="text-sm font-bold text-gray-700 bg-white py-2 rounded-md shadow-sm">৳{((product.calculatedPrice.suggestedPrice || product.sellingPrice) * 1.2).toFixed(0)}</div>
                         </div>
                       </div>
                     </div>
@@ -386,22 +394,21 @@ export const BrowseProducts = () => {
 
                   {/* Harvest Date */}
                   {product.harvestDate && (
-                    <p className="text-xs text-gray-500 mb-2">
-                      Harvested: {new Date(product.harvestDate).toLocaleDateString()}
-                    </p>
+                    <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 p-2 rounded">
+                      <span className="font-medium">Harvested:</span>
+                      <span>{new Date(product.harvestDate).toLocaleDateString()}</span>
+                    </div>
                   )}
-                </div>
-
-                {/* Actions */}
-                <div className="flex flex-col space-y-2">
-                  <div className="flex space-x-2">
-                    <Button
-                      onClick={() => handleAddToCart(product)}
-                      className="flex-1"
-                    >
-                      <ShoppingCart className="w-4 h-4 mr-2" />
-                      Add to Cart
-                    </Button>
+                  {/* Actions */}
+                  <div className="flex flex-col space-y-2 mt-2 pt-2 border-t border-gray-100">
+                    <div className="flex space-x-2">
+                      <Button
+                        onClick={() => handleAddToCart(product)}
+                        className="flex-1"
+                      >
+                        <ShoppingCart className="w-4 h-4 mr-2" />
+                        <span>Add to Cart</span>
+                      </Button>
                     {product.isPreOrder && (
                       <Button
                         variant="secondary"
@@ -422,6 +429,7 @@ export const BrowseProducts = () => {
                       View Reviews ({product.reviewCount})
                     </Button>
                   )}
+                  </div>
                 </div>
               </Card>
             ))}

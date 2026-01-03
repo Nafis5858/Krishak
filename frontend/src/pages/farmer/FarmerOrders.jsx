@@ -13,24 +13,35 @@ const FarmerOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, pending, confirmed, completed, cancelled
+  const [connectionError, setConnectionError] = useState(false);
 
   useEffect(() => {
     fetchOrders();
-    // Auto-refresh every 10 seconds for real-time updates
-    const interval = setInterval(fetchOrders, 10000);
+    // Auto-refresh every 10 seconds for real-time updates (only if no connection errors)
+    const interval = setInterval(() => {
+      if (!connectionError) {
+        fetchOrders(true); // silent fetch
+      }
+    }, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [connectionError]);
 
-  const fetchOrders = async () => {
-    setLoading(true);
+  const fetchOrders = async (silent = false) => {
+    if (!silent) setLoading(true);
     try {
       const response = await orderService.getMyOrders();
       setOrders(response.data || []);
+      setConnectionError(false); // Reset on success
     } catch (error) {
-      console.error('Error fetching orders:', error);
-      toast.error('Failed to fetch orders');
+      // Stop polling on network errors
+      if (error.message?.includes('Network Error') || error.code === 'ERR_CONNECTION_REFUSED') {
+        setConnectionError(true);
+      }
+      if (!silent) {
+        toast.error('Failed to fetch orders');
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 

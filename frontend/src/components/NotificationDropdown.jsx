@@ -9,6 +9,7 @@ const NotificationDropdown = () => {
   const [unreadCount, setUnreadCount] = useState(0);
   const [isOpen, setIsOpen] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [connectionError, setConnectionError] = useState(false);
   const dropdownRef = useRef(null);
 
   const navigate = useNavigate();
@@ -27,12 +28,13 @@ const NotificationDropdown = () => {
         setNotifications(response?.notifications || []);
         setUnreadCount(response?.unreadCount || 0);
       }
+      setConnectionError(false); // Reset on success
     } catch (error) {
-      console.error('Error fetching notifications:', error);
-      // Don't show error toast for 404 on initial load - route might not be ready
-      if (error.status !== 404) {
-        toast.error('Failed to load notifications');
+      // Stop polling on network errors
+      if (error.message?.includes('Network Error') || error.code === 'ERR_CONNECTION_REFUSED') {
+        setConnectionError(true);
       }
+      // Silently handle - don't show error toast
     } finally {
       setLoading(false);
     }
@@ -48,11 +50,13 @@ const NotificationDropdown = () => {
       } else {
         setUnreadCount(response?.unreadCount || 0);
       }
+      setConnectionError(false); // Reset on success
     } catch (error) {
-      // Silently fail for unread count - don't spam errors
-      if (error.status !== 404) {
-        console.error('Error fetching unread count:', error);
+      // Stop polling on network errors
+      if (error.message?.includes('Network Error') || error.code === 'ERR_CONNECTION_REFUSED') {
+        setConnectionError(true);
       }
+      // Silently fail for unread count - don't spam errors
     }
   };
 
@@ -62,17 +66,19 @@ const NotificationDropdown = () => {
     fetchNotifications();
   }, []);
 
-  // Poll for new notifications every 30 seconds
+  // Poll for new notifications every 30 seconds (only if no connection errors)
   useEffect(() => {
     const interval = setInterval(() => {
-      fetchUnreadCount();
-      if (isOpen) {
-        fetchNotifications();
+      if (!connectionError) {
+        fetchUnreadCount();
+        if (isOpen) {
+          fetchNotifications();
+        }
       }
     }, 30000); // Poll every 30 seconds
 
     return () => clearInterval(interval);
-  }, [isOpen]);
+  }, [isOpen, connectionError]);
 
   // Close dropdown when clicking outside
   useEffect(() => {

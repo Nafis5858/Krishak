@@ -49,9 +49,11 @@ export const Cart = () => {
             <ShoppingCart className="w-16 h-16 mx-auto text-gray-400 mb-4" />
             <h2 className="text-2xl font-bold text-gray-900 mb-2">Your Cart is Empty</h2>
             <p className="text-gray-600 mb-6">Add some products to your cart to get started</p>
-            <Button onClick={() => navigate('/dashboard')}>
-              Browse Products
-            </Button>
+            <div className="flex justify-center">
+              <Button onClick={() => navigate('/dashboard')}>
+                Browse Products
+              </Button>
+            </div>
           </Card>
         </div>
       </div>

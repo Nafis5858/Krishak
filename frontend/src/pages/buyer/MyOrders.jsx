@@ -13,28 +13,40 @@ export const MyOrders = () => {
   const [orders, setOrders] = useState([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState('all'); // all, pending, confirmed, completed, cancelled
+  const [connectionError, setConnectionError] = useState(false);
 
   useEffect(() => {
     fetchOrders();
-    // Auto-refresh every 10 seconds for real-time updates
-    const interval = setInterval(fetchOrders, 10000);
+    // Auto-refresh every 10 seconds for real-time updates (only if no connection errors)
+    const interval = setInterval(() => {
+      if (!connectionError) {
+        fetchOrders(true); // silent fetch
+      }
+    }, 10000);
     return () => clearInterval(interval);
-  }, []);
+  }, [connectionError]);
 
-  const fetchOrders = async () => {
+  const fetchOrders = async (silent = false) => {
     try {
-      setLoading(true);
+      if (!silent) setLoading(true);
       const response = await getMyOrders();
       // Filter to show only buyer's orders
       const buyerOrders = (response.data || []).filter(order => 
         order.buyer && (typeof order.buyer === 'object' ? order.buyer._id : order.buyer)
       );
       setOrders(buyerOrders);
+      setConnectionError(false); // Reset connection error on success
     } catch (error) {
-      console.error('Error fetching orders:', error);
-      toast.error('Failed to load orders');
+      // Only show error toast on initial load, not during polling
+      if (!silent) {
+        toast.error('Failed to load orders');
+      }
+      // Stop polling on network errors
+      if (error.message?.includes('Network Error') || error.code === 'ERR_CONNECTION_REFUSED') {
+        setConnectionError(true);
+      }
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   };
 
