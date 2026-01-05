@@ -21,6 +21,13 @@ const createNotification = async ({
   metadata = {}
 }) => {
   try {
+    console.log('📝 Creating notification:', {
+      userId,
+      type,
+      title,
+      messagePreview: message.substring(0, 50) + '...'
+    });
+
     const notification = await Notification.create({
       user: userId,
       type,
@@ -31,9 +38,15 @@ const createNotification = async ({
       metadata
     });
 
+    console.log('✅ Notification created successfully:', notification._id);
     return notification;
   } catch (error) {
-    console.error('Error creating notification:', error);
+    console.error('❌ Error creating notification:', {
+      error: error.message,
+      userId,
+      type,
+      title
+    });
     // Don't throw error - notifications shouldn't break the main flow
     return null;
   }
@@ -170,6 +183,16 @@ const notifyDeliveryInTransit = async (order) => {
 };
 
 const notifyOrderDelivered = async (order) => {
+  console.log('🔔 notifyOrderDelivered called for order:', {
+    orderId: order._id,
+    orderNumber: order.orderNumber,
+    buyer: order.buyer,
+    farmer: order.farmer,
+    transporter: order.transporter,
+    transportFee: order.priceBreakdown?.transportFee,
+    deliveryFeeDetails: order.deliveryFeeDetails?.totalFee
+  });
+
   // Notify buyer
   await createNotification({
     userId: order.buyer,
@@ -200,7 +223,13 @@ const notifyOrderDelivered = async (order) => {
                        order.deliveryFeeDetails?.totalFee || 
                        0;
     
-    await createNotification({
+    console.log('💰 Creating transporter payment notification:', {
+      transporterId: order.transporter,
+      deliveryFee: deliveryFee,
+      orderNumber: order.orderNumber
+    });
+    
+    const notification = await createNotification({
       userId: order.transporter,
       type: 'delivery_payment',
       title: '🚚 Delivery Payment Received!',
@@ -212,6 +241,10 @@ const notifyOrderDelivered = async (order) => {
         deliveryDate: order.actualDeliveryDate || new Date()
       }
     });
+    
+    console.log('✅ Transporter payment notification created:', notification ? 'Success' : 'Failed');
+  } else {
+    console.log('⚠️ No transporter assigned to order - skipping payment notification');
   }
 };
 

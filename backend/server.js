@@ -40,6 +40,14 @@ app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), handl
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// Security headers for Google OAuth
+app.use((req, res, next) => {
+  // Allow Google OAuth to work properly
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  next();
+});
+
 // CORS configuration - Allow requests from frontend
 app.use(cors({
   origin: [
@@ -59,7 +67,15 @@ app.use(cors({
 app.options('*', cors());
 
 // Serve static files (uploaded images)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', (req, res, next) => {
+  // Add CORS headers for image requests
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
+
+console.log('📁 Static files directory:', path.join(__dirname, 'uploads'));
 
 // Routes
 app.get('/', (req, res) => {

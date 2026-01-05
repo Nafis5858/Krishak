@@ -54,4 +54,11 @@ api.interceptors.response.use(
   }
 );
 
+// Add helper to get full image URL
+export const getImageUrl = (path) => {
+  if (!path) return null;
+  if (path.startsWith('http')) return path;
+  return `${api.defaults.baseURL}${path.startsWith('/') ? path : `/${path}`}`;
+};
+
 export default api;
