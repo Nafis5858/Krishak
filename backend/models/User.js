@@ -65,6 +65,16 @@ const userSchema = new mongoose.Schema({
     type: String,
     trim: true
   },
+  // Transporter's base/home location for proximity-based job filtering
+  baseLocation: {
+    village: { type: String, trim: true },
+    thana: { type: String, trim: true },
+    district: { type: String, trim: true },
+    coordinates: {
+      lat: { type: Number },
+      lng: { type: Number }
+    }
+  },
   // Enhanced transporter profile
   transporterProfile: {
     vehicleTypes: [{
@@ -84,6 +94,10 @@ const userSchema = new mongoose.Schema({
     serviceDistricts: [{
       type: String,
     }],
+    maxServiceRadius: {
+      type: Number,
+      default: 50 // Default 50km radius
+    }
   },
   
   // Stripe Payment Integration

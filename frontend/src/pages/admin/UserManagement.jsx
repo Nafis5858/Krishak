@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Search, Filter, Check, X, Eye, Trash2 } from 'lucide-react';
 import { toast } from 'react-toastify';
 import { getAllUsers, updateUserStatus, verifyUser, deleteUser } from '../../services/adminService';
+// Fixed JSX syntax error - removed duplicate closing div
 import Loading from '../../components/Loading';
 import Button from '../../components/Button';
 import Input from '../../components/Input';
@@ -27,9 +28,13 @@ export default function UserManagement() {
   const fetchUsers = async () => {
     try {
       setLoading(true);
+      console.log('🔍 Fetching users with filters:', filters);
       const response = await getAllUsers(filters);
+      console.log('📦 Response received:', response);
+      console.log('👥 Users data:', response.data);
       setUsers(response.data);
     } catch (error) {
+      console.error('❌ Error fetching users:', error);
       toast.error(error.response?.data?.message || 'Failed to fetch users');
     } finally {
       setLoading(false);
@@ -85,13 +90,14 @@ export default function UserManagement() {
   }
 
   return (
-    <div className="max-w-7xl mx-auto px-4 py-8">
-      <div className="flex items-center justify-between mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
-        <div className="text-sm text-gray-600">
-          Total Users: <span className="font-semibold">{users.length}</span>
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto">
+        <div className="flex items-center justify-between mb-8">
+          <h1 className="text-3xl font-bold text-gray-900">User Management</h1>
+          <div className="text-sm text-gray-600">
+            Total Users: <span className="font-semibold text-primary-600">{users.length}</span>
+          </div>
         </div>
-      </div>
 
       {/* Filters */}
       <div className="bg-white rounded-lg shadow p-6 mb-6">
@@ -179,8 +185,10 @@ export default function UserManagement() {
                     </td>
                     <td className="px-6 py-4">
                       <div className="text-sm">
-                        <div className="text-gray-900">{user.email}</div>
-                        <div className="text-gray-500">{user.phone}</div>
+                        <div className="text-gray-900">{user.email.substring(0, 3)}***@{user.email.split('@')[1]}</div>
+                        {user.phone && (
+                          <div className="text-gray-500">{user.phone.substring(0, 6)}*****</div>
+                        )}
                       </div>
                     </td>
                     <td className="px-6 py-4">
@@ -271,6 +279,7 @@ export default function UserManagement() {
           </div>
         </div>
       )}
+      </div>
     </div>
   );
 }

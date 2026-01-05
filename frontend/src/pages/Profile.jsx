@@ -30,6 +30,10 @@ export const Profile = () => {
     vehicleType: '',
     vehicleNumber: '',
     licenseNumber: '',
+    // Transporter base location fields
+    transporterVillage: '',
+    transporterThana: '',
+    transporterDistrict: '',
   });
 
   const vehicleTypeOptions = [
@@ -57,10 +61,15 @@ export const Profile = () => {
         vehicleType: response.data.vehicleType || '',
         vehicleNumber: response.data.vehicleNumber || '',
         licenseNumber: response.data.licenseNumber || '',
+        transporterVillage: response.data.baseLocation?.village || '',
+        transporterThana: response.data.baseLocation?.thana || '',
+        transporterDistrict: response.data.baseLocation?.district || '',
       });
-      // Set map coordinates if available
+      // Set map coordinates if available (farmer or transporter)
       if (response.data.farmLocation?.coordinates?.lat) {
         setMapCoordinates(response.data.farmLocation.coordinates);
+      } else if (response.data.baseLocation?.coordinates?.lat) {
+        setMapCoordinates(response.data.baseLocation.coordinates);
       }
     } catch (error) {
       toast.error('Failed to load profile');
@@ -105,6 +114,15 @@ export const Profile = () => {
         updateData.vehicleType = formData.vehicleType;
         updateData.vehicleNumber = formData.vehicleNumber;
         updateData.licenseNumber = formData.licenseNumber;
+        updateData.baseLocation = {
+          village: formData.transporterVillage,
+          thana: formData.transporterThana,
+          district: formData.transporterDistrict,
+          coordinates: mapCoordinates ? {
+            lat: mapCoordinates.lat,
+            lng: mapCoordinates.lng
+          } : profile.baseLocation?.coordinates || null
+        };
       }
 
       const response = await updateProfile(updateData);
@@ -133,10 +151,15 @@ export const Profile = () => {
       vehicleType: profile.vehicleType || '',
       vehicleNumber: profile.vehicleNumber || '',
       licenseNumber: profile.licenseNumber || '',
+      transporterVillage: profile.baseLocation?.village || '',
+      transporterThana: profile.baseLocation?.thana || '',
+      transporterDistrict: profile.baseLocation?.district || '',
     });
-    // Reset map coordinates to saved value
+    // Reset map coordinates to saved value (farmer or transporter)
     if (profile.farmLocation?.coordinates?.lat) {
       setMapCoordinates(profile.farmLocation.coordinates);
+    } else if (profile.baseLocation?.coordinates?.lat) {
+      setMapCoordinates(profile.baseLocation.coordinates);
     } else {
       setMapCoordinates(null);
     }
@@ -285,31 +308,110 @@ export const Profile = () => {
 
             {/* Transporter-specific fields */}
             {profile?.role === 'transporter' && (
-              <div className="space-y-4 mb-6 p-4 bg-primary-50 rounded-lg">
-                <h2 className="text-lg font-semibold text-gray-900">Vehicle Information</h2>
-                <Select
-                  label="Vehicle Type"
-                  name="vehicleType"
-                  value={formData.vehicleType}
-                  onChange={handleChange}
-                  options={vehicleTypeOptions}
-                  disabled={!isEditing}
-                />
-                <Input
-                  label="Vehicle Number"
-                  name="vehicleNumber"
-                  value={formData.vehicleNumber}
-                  onChange={handleChange}
-                  disabled={!isEditing}
-                />
-                <Input
-                  label="License Number"
-                  name="licenseNumber"
-                  value={formData.licenseNumber}
-                  onChange={handleChange}
-                  disabled={!isEditing}
-                />
-              </div>
+              <>
+                <div className="space-y-4 mb-6 p-4 bg-primary-50 rounded-lg">
+                  <h2 className="text-lg font-semibold text-gray-900">Vehicle Information</h2>
+                  <Select
+                    label="Vehicle Type"
+                    name="vehicleType"
+                    value={formData.vehicleType}
+                    onChange={handleChange}
+                    options={vehicleTypeOptions}
+                    disabled={!isEditing}
+                  />
+                  <Input
+                    label="Vehicle Number"
+                    name="vehicleNumber"
+                    value={formData.vehicleNumber}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                  />
+                  <Input
+                    label="License Number"
+                    name="licenseNumber"
+                    value={formData.licenseNumber}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                  />
+                </div>
+
+                {/* Transporter Base Location */}
+                <div className="space-y-4 mb-6 p-4 bg-blue-50 rounded-lg">
+                  <h2 className="text-lg font-semibold text-gray-900">Base Location</h2>
+                  <p className="text-sm text-gray-600 mb-3">
+                    📍 You'll only see delivery jobs within 50km of this address
+                  </p>
+                  <Input
+                    label="Village/Area"
+                    name="transporterVillage"
+                    value={formData.transporterVillage}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                    placeholder="Enter your village or area"
+                  />
+                  <Input
+                    label="Thana/Upazila"
+                    name="transporterThana"
+                    value={formData.transporterThana}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                    placeholder="Enter your thana"
+                  />
+                  <Input
+                    label="District"
+                    name="transporterDistrict"
+                    value={formData.transporterDistrict}
+                    onChange={handleChange}
+                    disabled={!isEditing}
+                    placeholder="Enter your district"
+                  />
+                  
+                  {/* Map Location for service radius */}
+                  <div className="mt-4 pt-4 border-t border-blue-200">
+                    <label className="block text-sm font-medium text-gray-700 mb-2">
+                      <MapPin className="w-4 h-4 inline mr-1" />
+                      GPS Location (for 50km service radius calculation)
+                    </label>
+                    
+                    {mapCoordinates ? (
+                      <p className="text-sm text-green-600 mb-2">
+                        📍 Location: {mapCoordinates.lat.toFixed(4)}, {mapCoordinates.lng.toFixed(4)}
+                      </p>
+                    ) : (
+                      <p className="text-sm text-orange-600 mb-2">
+                        ⚠️ No GPS location set - you won't see delivery jobs until you set your location
+                      </p>
+                    )}
+                    
+                    {isEditing && (
+                      <>
+                        <Button
+                          type="button"
+                          variant="outline"
+                          onClick={() => setShowMap(!showMap)}
+                          size="sm"
+                        >
+                          <MapPin className="w-4 h-4 mr-2" />
+                          {mapCoordinates ? 'Update Location' : 'Set Location on Map'}
+                        </Button>
+                        
+                        {showMap && (
+                          <div className="mt-3">
+                            <MapSelector
+                              onSelect={(coords, address) => {
+                                setMapCoordinates(coords);
+                                setShowMap(false);
+                                toast.success('Base location updated');
+                              }}
+                              initialPosition={mapCoordinates}
+                            />
+                          </div>
+                        )}
+                      </>
+                    )}
+                  </div>
+                </div>
+              </>
             )}
 
             {/* Account Stats */}

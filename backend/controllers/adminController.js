@@ -49,14 +49,16 @@ const getDashboardStats = asyncHandler(async (req, res) => {
 // @route   GET /api/admin/users
 // @access  Private/Admin
 const getAllUsers = asyncHandler(async (req, res) => {
+  console.log('📋 getAllUsers API called');
+  console.log('Query params:', req.query);
   const { role, isActive, isVerified, search } = req.query;
 
   const query = {};
 
-  if (role) query.role = role;
-  if (isActive !== undefined) query.isActive = isActive === 'true';
-  if (isVerified !== undefined) query.isVerified = isVerified === 'true';
-  if (search) {
+  if (role && role !== '') query.role = role;
+  if (isActive !== undefined && isActive !== '') query.isActive = isActive === 'true';
+  if (isVerified !== undefined && isVerified !== '') query.isVerified = isVerified === 'true';
+  if (search && search !== '') {
     query.$or = [
       { name: { $regex: search, $options: 'i' } },
       { email: { $regex: search, $options: 'i' } },
@@ -64,10 +66,12 @@ const getAllUsers = asyncHandler(async (req, res) => {
     ];
   }
 
+  console.log('MongoDB query:', query);
   const users = await User.find(query)
     .select('-password')
     .sort({ createdAt: -1 });
 
+  console.log(`✅ Found ${users.length} users`);
   res.status(200).json({
     success: true,
     count: users.length,

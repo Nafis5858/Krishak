@@ -10,7 +10,7 @@ const googleClient = new OAuth2Client(process.env.GOOGLE_CLIENT_ID);
 // @route   POST /api/auth/register
 // @access  Public
 const register = asyncHandler(async (req, res) => {
-  const { name, email, phone, password, role, farmLocation, vehicleType, vehicleNumber, licenseNumber } = req.body;
+  const { name, email, phone, password, role, farmLocation, vehicleType, vehicleNumber, licenseNumber, baseLocation } = req.body;
 
   // Validation
   if (!name || !email || !phone || !password || !role) {
@@ -53,6 +53,9 @@ const register = asyncHandler(async (req, res) => {
     userData.vehicleType = vehicleType;
     userData.vehicleNumber = vehicleNumber;
     userData.licenseNumber = licenseNumber;
+    if (baseLocation) {
+      userData.baseLocation = baseLocation;
+    }
   }
 
   const user = await User.create(userData);

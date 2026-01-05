@@ -31,10 +31,29 @@ const storage = multer.diskStorage({
 
 // File filter
 const fileFilter = (req, file, cb) => {
-  // Accept image files only
-  if (file.mimetype.startsWith('image/')) {
+  console.log('📸 File upload attempt:', {
+    fieldname: file.fieldname,
+    originalname: file.originalname,
+    mimetype: file.mimetype,
+    size: file.size
+  });
+  
+  // Accept all common image formats
+  const allowedMimeTypes = [
+    'image/jpeg',
+    'image/jpg',
+    'image/png',
+    'image/gif',
+    'image/webp',
+    'image/bmp',
+    'image/svg+xml'
+  ];
+  
+  if (file.mimetype.startsWith('image/') || allowedMimeTypes.includes(file.mimetype)) {
+    console.log('✅ File accepted:', file.originalname);
     cb(null, true);
   } else {
+    console.log('❌ File rejected:', file.mimetype);
     cb(new Error('Only image files are allowed'), false);
   }
 };

@@ -365,17 +365,18 @@ exports.confirmPayment = async (req, res) => {
       
       // Send notification to farmer/seller
       try {
-        const totalAmount = paymentIntent.metadata.totalAmountBDT || order.totalPrice;
+        // Farmer receives only the product amount, not delivery fee or platform fee
+        const productAmount = paymentIntent.metadata.productAmountBDT || order.totalPrice;
         await createNotification({
           userId: order.farmer._id,
           type: 'payment_received',
           title: '💰 Payment Received!',
-          message: `You have received ৳${Number(totalAmount).toLocaleString()} for order #${order.orderNumber}. ${order.buyer?.name || 'A buyer'} purchased ${order.quantity}kg of ${order.product?.cropName || 'your product'}.`,
+          message: `You have received ৳${Number(productAmount).toLocaleString()} for order #${order.orderNumber}. ${order.buyer?.name || 'A buyer'} purchased ${order.quantity}kg of ${order.product?.cropName || 'your product'}.`,
           relatedOrder: order._id,
           relatedProduct: order.product?._id,
           metadata: {
             orderNumber: order.orderNumber,
-            amount: totalAmount,
+            amount: productAmount,
             buyerName: order.buyer?.name,
             paymentMethod: 'stripe',
           },

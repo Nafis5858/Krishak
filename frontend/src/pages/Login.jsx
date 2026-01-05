@@ -67,7 +67,12 @@ export const Login = () => {
       // User closed the popup, don't show error
       return;
     }
-    toast.error('Google sign-in is not available. Please use email/password login.');
+    // Check if it's an origin error
+    if (error?.message?.includes('origin') || error?.type === 'idpiframe_initialization_failed') {
+      toast.error('Google Sign-In configuration error. Please use email/password login or contact support.');
+    } else {
+      toast.error('Google sign-in is not available. Please use email/password login.');
+    }
   };
 
   return (
