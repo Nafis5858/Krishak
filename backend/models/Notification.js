@@ -19,9 +19,10 @@ const notificationSchema = new mongoose.Schema({
       'delivery_assigned',      // Transporter assigned
       'delivery_picked',        // Transporter picked up
       'delivery_in_transit',    // Order in transit
-      'payment_received',      // Payment received
-      'product_approved',      // Product approved by admin
-      'product_rejected',      // Product rejected by admin
+      'delivery_payment',       // Transporter payment received
+      'payment_received',       // Payment received
+      'product_approved',       // Product approved by admin
+      'product_rejected',       // Product rejected by admin
       'system_announcement'     // System-wide announcements
     ]
   },

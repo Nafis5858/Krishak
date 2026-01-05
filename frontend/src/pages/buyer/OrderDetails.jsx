@@ -41,12 +41,18 @@ const OrderDetails = () => {
   }, [orderId, connectionError]);
 
   useEffect(() => {
-    if (order) {
+    if (order && isBuyer) {
       checkReviewStatus();
     }
-  }, [order]);
+  }, [order, isBuyer]);
 
   const checkReviewStatus = async () => {
+    // Only buyers can check review status
+    if (!isBuyer) {
+      console.log('⏭️ Skipping review check: User is not a buyer');
+      return;
+    }
+    
     try {
       const response = await reviewService.checkCanReview(orderId);
       setCanReview(response.canReview);
@@ -59,6 +65,7 @@ const OrderDetails = () => {
         }
       }
     } catch (error) {
+      console.log('⚠️ Review check failed (using fallback logic):', error.message);
       // Silently handle - use fallback logic below
       // If API fails, check local order state
       if (order && (order.orderStatus === 'completed' || order.deliveryStatus === 'delivered')) {
@@ -72,6 +79,20 @@ const OrderDetails = () => {
       const response = await orderService.getOrderById(orderId);
       // API returns { success: true, data: order }
       const orderData = response.data || response;
+      
+      // Detailed logging for debugging photo issues
+      console.log('📦 Order data received:', {
+        userRole: user?.role,
+        deliveryStatus: orderData.deliveryInfo?.status,
+        statusHistory: orderData.deliveryInfo?.statusHistory?.map(h => ({
+          status: h.status,
+          photo: h.photo,
+          timestamp: h.timestamp
+        })),
+        pickupPhoto: orderData.deliveryInfo?.pickupPhoto,
+        deliveryProofPhoto: orderData.deliveryInfo?.deliveryProofPhoto
+      });
+      
       setOrder(orderData);
       setError('');
       setConnectionError(false); // Reset on success
@@ -226,7 +247,14 @@ const OrderDetails = () => {
                           src={getPhotoUrl(order.deliveryInfo.pickupPhoto)}
                           alt="Pickup verification"
                           className="w-full h-48 object-cover rounded-lg border border-gray-200"
+                          onLoad={(e) => {
+                            console.log('✅ Pickup photo loaded:', getPhotoUrl(order.deliveryInfo.pickupPhoto));
+                          }}
                           onError={(e) => {
+                            console.error('❌ Pickup photo failed:', {
+                              photoObject: order.deliveryInfo.pickupPhoto,
+                              constructedUrl: getPhotoUrl(order.deliveryInfo.pickupPhoto)
+                            });
                             e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="200" height="200"><rect fill="%23f3f4f6"/><text x="50%" y="50%" text-anchor="middle" fill="%239ca3af" font-size="14">Photo unavailable</text></svg>';
                           }}
                         />

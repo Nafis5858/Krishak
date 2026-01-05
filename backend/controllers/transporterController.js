@@ -2,6 +2,7 @@ const asyncHandler = require('express-async-handler');
 const Order = require('../models/Order');
 const User = require('../models/User');
 const { notifyDeliveryAssigned, notifyDeliveryPicked, notifyDeliveryInTransit, notifyOrderDelivered } = require('../utils/notificationHelper');
+const { calculateStraightLineDistance } = require('../utils/distanceCalculator');
 
 // @desc    Get available delivery jobs for transporter
 // @route   GET /api/transporter/jobs
@@ -10,9 +11,9 @@ const getAvailableJobs = asyncHandler(async (req, res) => {
   const { district } = req.query;
   const transporterId = req.user._id;
 
-  // Get transporter's district from their profile
+  // Get transporter's base location from their profile
   const transporter = await User.findById(transporterId);
-  const transporterDistrict = district || transporter.district || transporter.location?.district;
+  const transporterLocation = transporter.baseLocation?.coordinates;
 
   // Find orders that need delivery (confirmed orders without a transporter assigned)
   const query = {
@@ -21,21 +22,73 @@ const getAvailableJobs = asyncHandler(async (req, res) => {
     transporter: { $exists: false }
   };
 
-  // Filter by district if available
-  if (transporterDistrict) {
-    query['deliveryAddress.district'] = new RegExp(transporterDistrict, 'i');
-  }
-
   const availableJobs = await Order.find(query)
     .populate('buyer', 'name phone')
     .populate('farmer', 'name phone farmLocation')
     .populate('product', 'cropName photos location')
     .sort({ createdAt: -1 });
 
+  // Calculate distances and filter jobs
+  const MAX_DISTANCE_KM = 50;
+  const jobsWithDistance = availableJobs.map(job => {
+    let farmerDistance = null;
+    let buyerDistance = null;
+    let isWithinRange = true;
+    let distanceWarning = null;
+
+    // Calculate distance to farmer (pickup location)
+    if (transporterLocation && job.farmer?.farmLocation?.coordinates) {
+      farmerDistance = calculateStraightLineDistance(
+        transporterLocation,
+        job.farmer.farmLocation.coordinates
+      );
+      if (farmerDistance > MAX_DISTANCE_KM) {
+        isWithinRange = false;
+        distanceWarning = `Pickup location is ${farmerDistance.toFixed(1)}km away`;
+      }
+    }
+
+    // Calculate distance to buyer (delivery location)
+    if (transporterLocation && job.deliveryAddress?.coordinates) {
+      buyerDistance = calculateStraightLineDistance(
+        transporterLocation,
+        job.deliveryAddress.coordinates
+      );
+      if (buyerDistance > MAX_DISTANCE_KM) {
+        isWithinRange = false;
+        if (!distanceWarning) {
+          distanceWarning = `Delivery location is ${buyerDistance.toFixed(1)}km away`;
+        } else {
+          distanceWarning = `Both locations are too far (${Math.max(farmerDistance, buyerDistance).toFixed(1)}km)`;
+        }
+      }
+    }
+
+    return {
+      ...job.toObject(),
+      distances: {
+        toFarmer: farmerDistance,
+        toBuyer: buyerDistance,
+        maxDistance: Math.max(farmerDistance || 0, buyerDistance || 0)
+      },
+      isWithinRange,
+      distanceWarning
+    };
+  });
+
+  // Sort: within range jobs first, then by distance
+  jobsWithDistance.sort((a, b) => {
+    if (a.isWithinRange && !b.isWithinRange) return -1;
+    if (!a.isWithinRange && b.isWithinRange) return 1;
+    return (a.distances.maxDistance || 0) - (b.distances.maxDistance || 0);
+  });
+
   res.json({
     success: true,
-    count: availableJobs.length,
-    data: availableJobs
+    count: jobsWithDistance.length,
+    data: jobsWithDistance,
+    transporterLocation: transporterLocation || null,
+    maxServiceRadius: MAX_DISTANCE_KM
   });
 });
 
@@ -46,7 +99,9 @@ const acceptJob = asyncHandler(async (req, res) => {
   const { orderId } = req.params;
   const transporterId = req.user._id;
 
-  const order = await Order.findById(orderId);
+  const order = await Order.findById(orderId)
+    .populate('farmer', 'farmLocation')
+    .populate('buyer', 'name');
 
   if (!order) {
     res.status(404);
@@ -61,6 +116,42 @@ const acceptJob = asyncHandler(async (req, res) => {
   if (order.deliveryStatus !== 'not_assigned') {
     res.status(400);
     throw new Error('This job is no longer available');
+  }
+
+  // Verify distance is within service radius
+  const transporter = await User.findById(transporterId);
+  const transporterLocation = transporter.baseLocation?.coordinates;
+  const MAX_DISTANCE_KM = 50;
+
+  if (transporterLocation) {
+    let isWithinRange = true;
+    
+    // Check distance to farmer (pickup)
+    if (order.farmer?.farmLocation?.coordinates) {
+      const farmerDistance = calculateStraightLineDistance(
+        transporterLocation,
+        order.farmer.farmLocation.coordinates
+      );
+      if (farmerDistance > MAX_DISTANCE_KM) {
+        isWithinRange = false;
+      }
+    }
+
+    // Check distance to buyer (delivery)
+    if (order.deliveryAddress?.coordinates) {
+      const buyerDistance = calculateStraightLineDistance(
+        transporterLocation,
+        order.deliveryAddress.coordinates
+      );
+      if (buyerDistance > MAX_DISTANCE_KM) {
+        isWithinRange = false;
+      }
+    }
+
+    if (!isWithinRange) {
+      res.status(400);
+      throw new Error(`This job is outside your service radius of ${MAX_DISTANCE_KM}km`);
+    }
   }
 
   // Assign the transporter
@@ -148,6 +239,11 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
       uploadedAt: new Date(),
       uploadedBy: transporterId
     };
+    console.log('✅ Pickup photo saved to order:', {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      photoUrl: photo
+    });
   }
 
   // Store delivery proof photo (optional)
@@ -157,6 +253,11 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
       uploadedAt: new Date(),
       uploadedBy: transporterId
     };
+    console.log('✅ Delivery photo saved to order:', {
+      orderId: order._id,
+      orderNumber: order.orderNumber,
+      photoUrl: photo
+    });
   }
 
   order.statusHistory.push({
@@ -176,11 +277,15 @@ const updateDeliveryStatus = asyncHandler(async (req, res) => {
 
   // Send notifications based on status
   if (status === 'picked') {
+    console.log('📧 Sending picked notification for order:', order.orderNumber);
     await notifyDeliveryPicked(order);
   } else if (status === 'in_transit') {
+    console.log('📧 Sending in_transit notification for order:', order.orderNumber);
     await notifyDeliveryInTransit(order);
   } else if (status === 'delivered') {
+    console.log('📧 Sending delivered notification for order:', order.orderNumber);
     await notifyOrderDelivered(order);
+    console.log('✅ Delivered notification completed for order:', order.orderNumber);
   }
 
   const populatedOrder = await Order.findById(order._id)
@@ -250,9 +355,9 @@ const getTransporterStats = asyncHandler(async (req, res) => {
     return sum + (order.priceBreakdown?.transportFee || 0);
   }, 0);
 
-  // Get pending jobs count (available in transporter's area)
+  // Get pending jobs count (available in transporter's service districts)
   const transporter = await User.findById(transporterId);
-  const transporterDistrict = transporter.district || transporter.location?.district;
+  const serviceDistricts = transporter.serviceDistricts || [];
   
   let pendingJobsQuery = {
     orderStatus: 'confirmed',
@@ -260,9 +365,11 @@ const getTransporterStats = asyncHandler(async (req, res) => {
     transporter: { $exists: false }
   };
   
-  if (transporterDistrict) {
-    pendingJobsQuery['deliveryAddress.district'] = new RegExp(transporterDistrict, 'i');
+  if (serviceDistricts.length > 0) {
+    const districtRegexArray = serviceDistricts.map(dist => new RegExp(dist, 'i'));
+    pendingJobsQuery['deliveryAddress.district'] = { $in: districtRegexArray };
   }
+  // If no service districts set, count all pending jobs
   
   const pendingJobs = await Order.countDocuments(pendingJobsQuery);
 

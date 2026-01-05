@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { MapPin, Package, User, Phone, Calendar, ArrowRight, Search, Filter } from 'lucide-react';
+import { MapPin, Package, User, Phone, Calendar, ArrowRight, Search, Filter, AlertTriangle, Navigation } from 'lucide-react';
 import { Card } from '../../components/Card';
 import { Button } from '../../components/Button';
 import { getAvailableJobs, acceptJob } from '../../services/transporterService';
@@ -13,6 +13,7 @@ const AvailableJobs = () => {
   const [loading, setLoading] = useState(true);
   const [accepting, setAccepting] = useState(null);
   const [selectedDistrict, setSelectedDistrict] = useState('');
+  const [maxServiceRadius, setMaxServiceRadius] = useState(50);
 
   useEffect(() => {
     fetchJobs();
@@ -23,6 +24,9 @@ const AvailableJobs = () => {
       setLoading(true);
       const response = await getAvailableJobs(selectedDistrict);
       setJobs(response.data || []);
+      if (response.maxServiceRadius) {
+        setMaxServiceRadius(response.maxServiceRadius);
+      }
     } catch (error) {
       console.error('Error fetching jobs:', error);
       toast.error('Failed to load available jobs');
@@ -115,7 +119,34 @@ const AvailableJobs = () => {
         ) : (
           <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {jobs.map(job => (
-              <Card key={job._id} className="hover:shadow-lg transition-shadow">
+              <Card key={job._id} className={`hover:shadow-lg transition-shadow ${!job.isWithinRange ? 'opacity-75 border-2 border-orange-200' : ''}`}>
+                {/* Distance Warning Banner */}
+                {!job.isWithinRange && job.distanceWarning && (
+                  <div className="bg-orange-50 border-l-4 border-orange-500 p-3 mb-4 flex items-start gap-2">
+                    <AlertTriangle className="w-5 h-5 text-orange-500 flex-shrink-0 mt-0.5" />
+                    <div>
+                      <p className="text-sm font-semibold text-orange-800">Outside Service Area</p>
+                      <p className="text-xs text-orange-700">{job.distanceWarning}</p>
+                      <p className="text-xs text-orange-600 mt-1">You can only accept jobs within {maxServiceRadius}km of your base location</p>
+                    </div>
+                  </div>
+                )}
+
+                {/* Distance Info Badge */}
+                {job.distances && job.isWithinRange && (
+                  <div className="bg-green-50 border border-green-200 rounded-lg p-2 mb-4 flex items-center justify-between">
+                    <div className="flex items-center gap-2">
+                      <Navigation className="w-4 h-4 text-green-600" />
+                      <span className="text-sm text-green-800 font-medium">Within Your Service Area</span>
+                    </div>
+                    {job.distances.maxDistance > 0 && (
+                      <span className="text-xs text-green-700 bg-green-100 px-2 py-1 rounded">
+                        ~{job.distances.maxDistance.toFixed(1)}km away
+                      </span>
+                    )}
+                  </div>
+                )}
+
                 {/* Job Header */}
                 <div className="flex items-start justify-between mb-4">
                   <div>
@@ -142,7 +173,14 @@ const AvailableJobs = () => {
                       <MapPin className="w-4 h-4" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-xs text-green-600 font-medium uppercase">Pickup From</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-green-600 font-medium uppercase">Pickup From</p>
+                        {job.distances?.toFarmer > 0 && (
+                          <span className="text-xs bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-medium">
+                            {job.distances.toFarmer.toFixed(1)}km
+                          </span>
+                        )}
+                      </div>
                       <p className="font-semibold text-gray-900">{job.farmer?.name}</p>
                       <p className="text-sm text-gray-600">
                         {job.product?.location?.village}, {job.product?.location?.thana}, {job.product?.location?.district}
@@ -164,7 +202,14 @@ const AvailableJobs = () => {
                       <MapPin className="w-4 h-4" />
                     </div>
                     <div className="flex-1">
-                      <p className="text-xs text-blue-600 font-medium uppercase">Deliver To</p>
+                      <div className="flex items-center justify-between">
+                        <p className="text-xs text-blue-600 font-medium uppercase">Deliver To</p>
+                        {job.distances?.toBuyer > 0 && (
+                          <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full font-medium">
+                            {job.distances.toBuyer.toFixed(1)}km
+                          </span>
+                        )}
+                      </div>
                       <p className="font-semibold text-gray-900">{job.buyer?.name}</p>
                       <p className="text-sm text-gray-600">
                         {job.deliveryAddress?.addressLine}, {job.deliveryAddress?.thana}, {job.deliveryAddress?.district}
@@ -191,14 +236,20 @@ const AvailableJobs = () => {
                 {/* Accept Button */}
                 <Button
                   onClick={() => handleAcceptJob(job._id)}
-                  disabled={accepting === job._id}
+                  disabled={accepting === job._id || !job.isWithinRange}
                   fullWidth
                   className="mt-2"
+                  variant={!job.isWithinRange ? 'secondary' : 'primary'}
                 >
                   {accepting === job._id ? (
                     <>
                       <span className="animate-spin mr-2">⏳</span>
                       Accepting...
+                    </>
+                  ) : !job.isWithinRange ? (
+                    <>
+                      <AlertTriangle className="w-4 h-4 mr-2" />
+                      Too Far - Cannot Accept
                     </>
                   ) : (
                     'Accept This Job'
