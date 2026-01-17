@@ -42,9 +42,53 @@ export const getTransporterStats = async () => {
   return response;
 };
 
-// Submit product review
-export const submitProductReview = async (orderId, reviewData) => {
-  const response = await api.post(`/orders/${orderId}/review`, reviewData);
+// Confirm pickup with photo
+export const confirmPickup = async (orderId, photoFile) => {
+  const formData = new FormData();
+  formData.append('pickupPhoto', photoFile);
+  
+  const response = await api.post(`/orders/${orderId}/confirm-pickup`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  
+  return response;
+};
+
+// Get order details with photo URLs
+export const getOrderDetails = async (orderId) => {
+  const response = await api.get(`/orders/${orderId}`);
+  
+  // Ensure photo URLs are absolute
+  if (response.pickupPhoto && !response.pickupPhoto.startsWith('http')) {
+    response.pickupPhoto = `${api.defaults.baseURL}${response.pickupPhoto}`;
+  }
+  if (response.deliveryPhoto && !response.deliveryPhoto.startsWith('http')) {
+    response.deliveryPhoto = `${api.defaults.baseURL}${response.deliveryPhoto}`;
+  }
+  
+  return response;
+};
+
+// Confirm delivery with photo
+export const confirmDelivery = async (orderId, photoFile) => {
+  const formData = new FormData();
+  formData.append('deliveryPhoto', photoFile);
+  
+  const response = await api.post(`/orders/${orderId}/confirm-delivery`, formData, {
+    headers: {
+      'Content-Type': 'multipart/form-data',
+    },
+  });
+  
+  return response;
+};
+
+// Get transporter orders
+export const getTransporterOrders = async (status = null) => {
+  const params = status ? `?status=${status}` : '';
+  const response = await api.get(`/orders/transporter${params}`);
   return response;
 };
 
@@ -56,7 +100,10 @@ export const orderService = {
   updateOrderStatus,
   getBuyerStats,
   getTransporterStats,
-  submitProductReview
+  confirmPickup,
+  confirmDelivery,
+  getOrderDetails,
+  getTransporterOrders,
 };
 
 export default orderService;

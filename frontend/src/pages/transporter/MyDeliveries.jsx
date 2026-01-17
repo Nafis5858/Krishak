@@ -80,6 +80,13 @@ const MyDeliveries = () => {
   const handlePhotoSelect = (e) => {
     const file = e.target.files[0];
     if (file) {
+      console.log('File selected:', {
+        name: file.name,
+        type: file.type,
+        size: file.size,
+        lastModified: file.lastModified
+      });
+      
       if (!file.type.startsWith('image/')) {
         toast.error('Please select an image file');
         return;
@@ -88,8 +95,16 @@ const MyDeliveries = () => {
         toast.error('Image size must be less than 5MB');
         return;
       }
-      setPhotoFile(file);
-      setPhotoPreview(URL.createObjectURL(file));
+      
+      try {
+        const previewUrl = URL.createObjectURL(file);
+        console.log('Preview URL created:', previewUrl);
+        setPhotoFile(file);
+        setPhotoPreview(previewUrl);
+      } catch (error) {
+        console.error('Error creating preview URL:', error);
+        toast.error('Failed to create photo preview');
+      }
     }
   };
 
@@ -455,113 +470,114 @@ const MyDeliveries = () => {
       {/* Photo Upload Modal */}
       {showPhotoModal && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl max-w-md w-full p-6 relative animate-fadeIn">
+          <div className="bg-white rounded-2xl max-w-lg w-full max-h-[90vh] overflow-y-auto relative animate-fadeIn">
             {/* Close Button */}
             <button
               onClick={closePhotoModal}
-              className="absolute top-4 right-4 text-gray-400 hover:text-gray-600"
+              className="absolute top-3 right-3 z-10 text-gray-400 hover:text-gray-600 bg-white rounded-full p-1 shadow-sm"
             >
-              <X className="w-6 h-6" />
+              <X className="w-5 h-5" />
             </button>
 
             {/* Header */}
-            <div className="text-center mb-6">
-              <div className="w-16 h-16 bg-primary-100 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Camera className="w-8 h-8 text-primary-600" />
-              </div>
-              <h3 className="text-xl font-bold text-gray-900">
-                {pendingStatus === 'picked' ? 'Pickup Verification' : 'Delivery Proof'}
-              </h3>
-              <p className="text-gray-600 mt-2">
-                {pendingStatus === 'picked' 
-                  ? 'Please take a photo of the product before picking it up. This verifies the product condition for the buyer and farmer.'
-                  : 'You can optionally add a photo as proof of delivery. This helps build trust with buyers.'}
-              </p>
-              {pendingStatus === 'delivered' && (
-                <p className="text-sm text-primary-600 mt-1">
-                  📷 Photo is optional for delivery confirmation
-                </p>
-              )}
-            </div>
-
-            {/* Order Info */}
-            <div className="bg-gray-50 rounded-lg p-3 mb-4">
-              <p className="text-sm text-gray-600">
-                <span className="font-medium">Order:</span> #{selectedDelivery?.orderNumber}
-              </p>
-              <p className="text-sm text-gray-600">
-                <span className="font-medium">Product:</span> {selectedDelivery?.product?.cropName} - {selectedDelivery?.quantity}kg
-              </p>
-            </div>
-
-            {/* Photo Upload Area */}
-            <div className="mb-6">
-              <input
-                type="file"
-                ref={fileInputRef}
-                onChange={handlePhotoSelect}
-                accept="image/*"
-                capture="environment"
-                className="hidden"
-              />
-
-              {photoPreview ? (
-                <div className="relative">
-                  <img
-                    src={photoPreview}
-                    alt="Preview"
-                    className="w-full h-64 object-cover rounded-lg"
-                  />
-                  <button
-                    onClick={() => {
-                      setPhotoFile(null);
-                      URL.revokeObjectURL(photoPreview);
-                      setPhotoPreview(null);
-                    }}
-                    className="absolute top-2 right-2 bg-red-500 text-white p-2 rounded-full hover:bg-red-600"
-                  >
-                    <X className="w-4 h-4" />
-                  </button>
-                  <p className="text-center text-sm text-green-600 mt-2 flex items-center justify-center gap-1">
-                    <CheckCircle className="w-4 h-4" />
-                    Photo ready to upload
+            <div className="p-4 border-b border-gray-200">
+              <div className="flex items-center gap-3">
+                <div className="w-10 h-10 bg-primary-100 rounded-full flex items-center justify-center flex-shrink-0">
+                  <Camera className="w-5 h-5 text-primary-600" />
+                </div>
+                <div className="flex-1">
+                  <h3 className="text-lg font-bold text-gray-900">
+                    {pendingStatus === 'picked' ? 'Pickup Verification' : 'Delivery Proof'}
+                  </h3>
+                  <p className="text-xs text-gray-500">
+                    {pendingStatus === 'picked' ? 'Photo required' : 'Photo optional'}
                   </p>
                 </div>
-              ) : (
-                <button
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full h-64 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-3 hover:border-primary-500 hover:bg-primary-50 transition-colors"
-                >
-                  <div className="w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center">
-                    <Upload className="w-8 h-8 text-gray-400" />
-                  </div>
-                  <div className="text-center">
-                    <p className="font-medium text-gray-700">Tap to take photo</p>
-                    <p className="text-sm text-gray-500">or choose from gallery</p>
-                  </div>
-                </button>
-              )}
+              </div>
             </div>
 
-            {/* Alert */}
-            <div className="flex items-start gap-3 p-3 bg-yellow-50 border border-yellow-200 rounded-lg mb-6">
-              <AlertCircle className="w-5 h-5 text-yellow-600 flex-shrink-0 mt-0.5" />
-              <div className="text-sm text-yellow-800">
-                <p className="font-medium">
-                  {pendingStatus === 'picked' ? 'Required' : 'Optional'}
+            <div className="p-4">
+              {/* Order Info */}
+              <div className="bg-gray-50 rounded-lg p-3 mb-3">
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Order:</span> #{selectedDelivery?.orderNumber}
                 </p>
-                <p>
+                <p className="text-sm text-gray-600">
+                  <span className="font-medium">Product:</span> {selectedDelivery?.product?.cropName} - {selectedDelivery?.quantity}kg
+                </p>
+              </div>
+
+              {/* Photo Upload Area */}
+              <div className="mb-3">
+                <input
+                  type="file"
+                  ref={fileInputRef}
+                  onChange={handlePhotoSelect}
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/*"
+                  capture="environment"
+                  className="hidden"
+                />
+
+                {photoPreview ? (
+                  <div className="relative">
+                    <img
+                      src={photoPreview}
+                      alt="Preview"
+                      className="w-full h-48 object-cover rounded-lg border-2 border-green-200"
+                      onError={(e) => {
+                        console.error('Preview image failed to load');
+                        e.target.style.display = 'none';
+                      }}
+                      onLoad={(e) => {
+                        console.log('Preview image loaded successfully');
+                      }}
+                    />
+                    <button
+                      onClick={() => {
+                        setPhotoFile(null);
+                        URL.revokeObjectURL(photoPreview);
+                        setPhotoPreview(null);
+                      }}
+                      className="absolute top-2 right-2 bg-red-500 text-white p-1.5 rounded-full hover:bg-red-600 shadow-lg"
+                    >
+                      <X className="w-4 h-4" />
+                    </button>
+                    <div className="absolute bottom-2 left-2 right-2 bg-green-600 text-white text-xs py-1.5 px-2 rounded flex items-center justify-center gap-1.5">
+                      <CheckCircle className="w-3.5 h-3.5" />
+                      Photo ready to upload
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full h-40 border-2 border-dashed border-gray-300 rounded-lg flex flex-col items-center justify-center gap-2 hover:border-primary-500 hover:bg-primary-50 transition-colors"
+                  >
+                    <div className="w-12 h-12 bg-gray-100 rounded-full flex items-center justify-center">
+                      <Upload className="w-6 h-6 text-gray-400" />
+                    </div>
+                    <div className="text-center">
+                      <p className="text-sm font-medium text-gray-700">Take Photo</p>
+                      <p className="text-xs text-gray-500">Tap to capture or upload</p>
+                    </div>
+                  </button>
+                )}
+              </div>
+
+              {/* Info Message */}
+              <div className="flex items-start gap-2 p-2.5 bg-yellow-50 border border-yellow-200 rounded-lg mb-3">
+                <AlertCircle className="w-4 h-4 text-yellow-600 flex-shrink-0 mt-0.5" />
+                <p className="text-xs text-yellow-800">
                   {pendingStatus === 'picked' 
                     ? 'Pickup photo is mandatory for verification purposes.'
-                    : 'You can proceed without a photo, but adding one builds customer trust.'}
+                    : 'Adding a photo builds customer trust and provides proof of delivery.'}
                 </p>
               </div>
             </div>
 
             {/* Action Buttons */}
-            <div className="flex gap-3">
+            <div className="flex gap-2 p-4 border-t border-gray-200 bg-gray-50">
               <Button
-                variant="secondary"
+                variant="outline"
                 onClick={closePhotoModal}
                 disabled={uploading}
                 className="flex-1"
@@ -573,37 +589,32 @@ const MyDeliveries = () => {
                   onClick={handlePhotoUploadAndStatusUpdate}
                   disabled={uploading}
                   variant="secondary"
-                  className="flex-1 flex items-center justify-center gap-2"
+                  className="flex-1 flex items-center justify-center gap-1.5"
                 >
                   {uploading ? (
                     <>
                       <span className="animate-spin">⏳</span>
-                      Processing...
+                      <span>Processing...</span>
                     </>
                   ) : (
-                    <>
-                      Skip Photo
-                    </>
+                    'Skip Photo'
                   )}
                 </Button>
               )}
               <Button
                 onClick={handlePhotoUploadAndStatusUpdate}
                 disabled={(pendingStatus === 'picked' && !photoFile) || uploading}
-                className="flex-1 flex items-center justify-center gap-2"
+                className="flex-1 flex items-center justify-center gap-1.5"
               >
                 {uploading ? (
                   <>
                     <span className="animate-spin">⏳</span>
-                    {photoFile ? 'Uploading...' : 'Processing...'}
+                    <span>Uploading...</span>
                   </>
                 ) : (
                   <>
                     <CheckCircle className="w-4 h-4" />
-                    {photoFile 
-                      ? `Confirm ${pendingStatus === 'picked' ? 'Pickup' : 'Delivery'}`
-                      : `Confirm ${pendingStatus === 'picked' ? 'Pickup' : 'Delivery'}`
-                    }
+                    <span>Confirm {pendingStatus === 'picked' ? 'Pickup' : 'Delivery'}</span>
                   </>
                 )}
               </Button>

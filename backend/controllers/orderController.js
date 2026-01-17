@@ -2,12 +2,13 @@ const asyncHandler = require('express-async-handler');
 const Order = require('../models/Order');
 const Product = require('../models/Product');
 const User = require('../models/User');
+const { notifyOrderPlaced, notifyOrderCancelled, notifyOrderCompleted } = require('../utils/notificationHelper');
 
 // @desc    Create new order
 // @route   POST /api/orders
 // @access  Private (Buyer only)
 const createOrder = asyncHandler(async (req, res) => {
-  const { productId, quantity, pricePerUnit, deliveryAddress, paymentMethod, isPreOrder, deliverySlot, notes } = req.body;
+  const { productId, quantity, pricePerUnit, deliveryAddress, paymentMethod, isPreOrder, deliverySlot, notes, vehicleType, deliveryFee } = req.body;
 
   // Validate required fields
   if (!productId || !quantity || !pricePerUnit || !deliveryAddress) {
@@ -36,14 +37,15 @@ const createOrder = asyncHandler(async (req, res) => {
       throw new Error('This product does not support pre-orders');
     }
 
-    // Check minimum order quantity (MOQ)
-    if (quantity < product.moq) {
-      throw new Error(`Minimum order quantity is ${product.moq} ${product.unit}. You requested ${quantity} ${product.unit}`);
-    }
-
-    // Check quantity availability
+    // Check quantity availability first
     if (quantity > product.quantity) {
       throw new Error(`Insufficient stock. Available: ${product.quantity} ${product.unit}, Requested: ${quantity} ${product.unit}`);
+    }
+
+    // Check minimum order quantity (MOQ) only if there's enough stock to meet MOQ
+    // If remaining stock is less than MOQ, allow ordering whatever is available
+    if (product.quantity >= product.moq && quantity < product.moq) {
+      throw new Error(`Minimum order quantity is ${product.moq} ${product.unit}. You requested ${quantity} ${product.unit}`);
     }
 
     // Calculate total price
@@ -62,6 +64,11 @@ const createOrder = asyncHandler(async (req, res) => {
       estimatedDeliveryDate = product.expectedHarvestDate || new Date(Date.now() + 7 * 24 * 60 * 60 * 1000); // 1 week default
     }
 
+    // Calculate actual delivery fee and platform fee
+    const actualDeliveryFee = deliveryFee || totalPrice * 0.05;
+    const platformFee = Math.round((totalPrice + actualDeliveryFee) * 0.05);
+    const farmerEarnings = totalPrice - platformFee;
+
     // Create order
     const order = await Order.create([{
       orderNumber,
@@ -72,15 +79,25 @@ const createOrder = asyncHandler(async (req, res) => {
       pricePerUnit,
       totalPrice,
       priceBreakdown: {
-        farmerEarnings: totalPrice * 0.9, // 90% to farmer
-        platformFee: totalPrice * 0.05,   // 5% platform
-        transportFee: totalPrice * 0.05    // 5% transport
+        farmerEarnings: farmerEarnings,
+        platformFee: platformFee,
+        transportFee: actualDeliveryFee
       },
       deliveryAddress,
       paymentMethod,
       orderStatus: 'confirmed', // Auto-confirm orders when placed
       isPreOrder: isPreOrder || false,
       estimatedDeliveryDate,
+      // Add vehicle type if provided
+      deliveryVehicle: vehicleType ? {
+        type: vehicleType,
+      } : undefined,
+      // Add delivery fee details
+      deliveryFeeDetails: vehicleType ? {
+        vehicleType: vehicleType,
+        totalFee: actualDeliveryFee,
+        calculatedAt: new Date(),
+      } : undefined,
       deliverySlot: deliverySlot ? {
         date: deliverySlot.date ? new Date(deliverySlot.date) : undefined,
         timeSlot: deliverySlot.timeSlot,
@@ -109,11 +126,8 @@ const createOrder = asyncHandler(async (req, res) => {
       if (newQuantity <= 0) {
         product.status = 'sold';
         console.log(`✅ Product ${product._id} marked as SOLD (quantity: ${newQuantity})`);
-      } else if (newQuantity < product.moq) {
-        // If remaining quantity is less than MOQ, mark as sold (can't fulfill minimum orders)
-        product.status = 'sold';
-        console.log(`✅ Product ${product._id} marked as SOLD (quantity ${newQuantity} < MOQ ${product.moq})`);
       } else {
+        // Keep product as 'approved' even if below MOQ - buyers can still purchase remaining stock
         console.log(`✅ Product ${product._id} quantity updated: ${product.quantity + quantity} → ${newQuantity} ${product.unit}`);
       }
     }
@@ -124,15 +138,8 @@ const createOrder = asyncHandler(async (req, res) => {
     await session.commitTransaction();
     session.endSession();
 
-    // TODO: Send notification to farmer
-    // await sendNotificationToFarmer(product.farmer, {
-    //   type: 'NEW_ORDER',
-    //   orderId: order[0]._id,
-    //   orderNumber,
-    //   quantity,
-    //   totalPrice,
-    //   buyerName: req.user.name
-    // });
+    // Send notifications
+    await notifyOrderPlaced(order[0]);
 
     console.log(`✅ Order created & CONFIRMED: ${orderNumber} | Buyer: ${req.user._id} | Farmer: ${product.farmer} | Product: ${product.cropName} | Qty: ${quantity}${product.unit} | Total: ৳${totalPrice}`);
 
@@ -368,6 +375,9 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
       await product.save();
     }
 
+    // Send cancellation notification
+    await notifyOrderCancelled(order, req.user._id);
+
     console.log(`⚠️ Order ${order.orderNumber} cancelled | Quantity restored: ${order.quantity} ${order.product.unit}`);
   }
 
@@ -381,94 +391,15 @@ const updateOrderStatus = asyncHandler(async (req, res) => {
 
   await order.save();
 
+  // Send completion notification
+  if (status === 'completed' && oldStatus !== 'completed') {
+    await notifyOrderCompleted(order);
+  }
+
   res.json({
     success: true,
     message: `Order status updated to ${status}`,
     data: order
-  });
-});
-
-// @desc    Submit product review (buyer reviews farmer/product)
-// @route   POST /api/orders/:id/review
-// @access  Private (Buyer only)
-const submitProductReview = asyncHandler(async (req, res) => {
-  const { rating, review } = req.body;
-  const orderId = req.params.id;
-  const buyerId = req.user._id;
-
-  // Validate rating
-  if (!rating || rating < 1 || rating > 5) {
-    res.status(400);
-    throw new Error('Rating must be between 1 and 5');
-  }
-
-  // Find the order
-  const order = await Order.findById(orderId).populate('farmer');
-
-  if (!order) {
-    res.status(404);
-    throw new Error('Order not found');
-  }
-
-  // Verify buyer owns this order
-  if (order.buyer.toString() !== buyerId.toString()) {
-    res.status(403);
-    throw new Error('You can only review your own orders');
-  }
-
-  // Check if order is delivered
-  if (order.deliveryStatus !== 'delivered' || order.orderStatus !== 'completed') {
-    res.status(400);
-    throw new Error('You can only review delivered orders');
-  }
-
-  // Check if already reviewed
-  if (order.farmerRating && order.farmerRating.rating) {
-    res.status(400);
-    throw new Error('You have already reviewed this order');
-  }
-
-  // Add review to order
-  order.farmerRating = {
-    rating: Number(rating),
-    review: review || '',
-    createdAt: new Date()
-  };
-
-  await order.save();
-
-  // Update farmer's average rating
-  const farmer = await User.findById(order.farmer._id);
-  
-  // Get all orders with ratings for this farmer
-  const ordersWithRatings = await Order.find({
-    farmer: order.farmer._id,
-    'farmerRating.rating': { $exists: true, $ne: null }
-  });
-
-  // Calculate new average
-  const totalRatings = ordersWithRatings.length;
-  const sumRatings = ordersWithRatings.reduce((sum, o) => sum + (o.farmerRating.rating || 0), 0);
-  const averageRating = totalRatings > 0 ? sumRatings / totalRatings : 0;
-
-  // Update farmer's rating
-  farmer.rating = {
-    average: Number(averageRating.toFixed(1)),
-    count: totalRatings
-  };
-
-  await farmer.save();
-
-  res.json({
-    success: true,
-    message: 'Review submitted successfully',
-    data: {
-      order,
-      farmerRating: {
-        average: farmer.rating.average,
-        count: farmer.rating.count
-      }
-    }
   });
 });
 
@@ -478,6 +409,5 @@ module.exports = {
   getOrder,
   updateOrderStatus,
   getBuyerStats,
-  getTransporterStats,
-  submitProductReview
+  getTransporterStats
 };

@@ -13,6 +13,9 @@ const {
   getFarmerStats
 } = require('../controllers/productController');
 
+// Import review controller for product reviews
+const { getProductReviews } = require('../controllers/reviewController');
+
 // Import Middleware
 const { protect, authorize } = require('../middleware/authMiddleware');
 const upload = require('../middleware/uploadMiddleware');
@@ -20,6 +23,8 @@ const upload = require('../middleware/uploadMiddleware');
 // Public routes
 router.get('/', getProducts);
 router.post('/calculate-fair-price', calculateFairPrice);
+// Product reviews route (must come before /:id route)
+router.get('/:productId/reviews', getProductReviews);
 
 // Protected routes (require authentication)
 router.use(protect);

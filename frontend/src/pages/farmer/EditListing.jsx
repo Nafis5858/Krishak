@@ -381,7 +381,7 @@ export default function EditListing() {
                 <input
                   type="file"
                   id="photoUpload"
-                  accept="image/*"
+                  accept="image/jpeg,image/jpg,image/png,image/gif,image/webp,image/*"
                   multiple
                   onChange={handlePhotoUpload}
                   className="hidden"

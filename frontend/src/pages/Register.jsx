@@ -6,8 +6,10 @@ import { Input } from '../components/Input';
 import { Select } from '../components/Select';
 import { Button } from '../components/Button';
 import { Card } from '../components/Card';
-import { UserPlus } from 'lucide-react';
+import { UserPlus, MapPin } from 'lucide-react';
 import { toast } from 'react-toastify';
+import MapSelector from '../components/MapSelector';
+import { BANGLADESH_DISTRICTS } from '../utils/bangladeshData';
 
 export const Register = () => {
   const navigate = useNavigate();
@@ -28,7 +30,13 @@ export const Register = () => {
     vehicleType: '',
     vehicleNumber: '',
     licenseNumber: '',
+    // Transporter base location
+    transporterVillage: '',
+    transporterThana: '',
+    transporterDistrict: '',
+    transporterCoordinates: { lat: null, lng: null },
   });
+  const [showMapSelector, setShowMapSelector] = useState(false);
 
   const roleOptions = [
     { value: 'farmer', label: 'Farmer' },
@@ -83,6 +91,12 @@ export const Register = () => {
         userData.vehicleType = formData.vehicleType;
         userData.vehicleNumber = formData.vehicleNumber;
         userData.licenseNumber = formData.licenseNumber;
+        userData.baseLocation = {
+          village: formData.transporterVillage,
+          thana: formData.transporterThana,
+          district: formData.transporterDistrict,
+          coordinates: formData.transporterCoordinates,
+        };
       }
 
       await register(userData);
@@ -229,34 +243,101 @@ export const Register = () => {
 
           {/* Transporter-specific fields */}
           {formData.role === 'transporter' && (
-            <div className="mt-6 p-4 bg-primary-50 rounded-lg">
-              <h3 className="font-semibold text-gray-900 mb-3">Vehicle Information</h3>
-              <div className="space-y-4">
-                <Select
-                  label="Vehicle Type"
-                  name="vehicleType"
-                  value={formData.vehicleType}
-                  onChange={handleChange}
-                  options={vehicleTypeOptions}
-                  required
-                />
-                <Input
-                  label="Vehicle Number"
-                  name="vehicleNumber"
-                  value={formData.vehicleNumber}
-                  onChange={handleChange}
-                  placeholder="e.g., DHAKA-GA-12-3456"
-                  required
-                />
-                <Input
-                  label="License Number"
-                  name="licenseNumber"
-                  value={formData.licenseNumber}
-                  onChange={handleChange}
-                  placeholder="Enter your license number"
-                />
+            <>
+              <div className="mt-6 p-4 bg-primary-50 rounded-lg">
+                <h3 className="font-semibold text-gray-900 mb-3">Vehicle Information</h3>
+                <div className="space-y-4">
+                  <Select
+                    label="Vehicle Type"
+                    name="vehicleType"
+                    value={formData.vehicleType}
+                    onChange={handleChange}
+                    options={vehicleTypeOptions}
+                    required
+                  />
+                  <Input
+                    label="Vehicle Number"
+                    name="vehicleNumber"
+                    value={formData.vehicleNumber}
+                    onChange={handleChange}
+                    placeholder="e.g., DHAKA-GA-12-3456"
+                    required
+                  />
+                  <Input
+                    label="License Number"
+                    name="licenseNumber"
+                    value={formData.licenseNumber}
+                    onChange={handleChange}
+                    placeholder="Enter your license number"
+                  />
+                </div>
               </div>
-            </div>
+
+              <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+                <h3 className="font-semibold text-gray-900 mb-3 flex items-center gap-2">
+                  <MapPin className="w-5 h-5" />
+                  Base Location (For Job Filtering)
+                </h3>
+                <p className="text-sm text-gray-600 mb-4">
+                  You'll only see delivery jobs within 50km of this address
+                </p>
+                <div className="space-y-4">
+                  <Input
+                    label="Village/Area"
+                    name="transporterVillage"
+                    value={formData.transporterVillage}
+                    onChange={handleChange}
+                    placeholder="Enter your village or area name"
+                    required
+                  />
+                  <Input
+                    label="Thana/Upazila"
+                    name="transporterThana"
+                    value={formData.transporterThana}
+                    onChange={handleChange}
+                    placeholder="Enter thana name"
+                    required
+                  />
+                  <Select
+                    label="District"
+                    name="transporterDistrict"
+                    value={formData.transporterDistrict}
+                    onChange={handleChange}
+                    options={BANGLADESH_DISTRICTS.map(d => ({ value: d, label: d }))}
+                    required
+                  />
+                  <div>
+                    <Button
+                      type="button"
+                      variant="secondary"
+                      onClick={() => setShowMapSelector(true)}
+                      fullWidth
+                    >
+                      <MapPin className="w-4 h-4 mr-2" />
+                      {formData.transporterCoordinates.lat ? 'Update Location' : 'Set Location on Map'}
+                    </Button>
+                    {formData.transporterCoordinates.lat && (
+                      <p className="text-sm text-green-600 mt-2">
+                        ✓ Location set: {formData.transporterCoordinates.lat.toFixed(4)}, {formData.transporterCoordinates.lng.toFixed(4)}
+                      </p>
+                    )}
+                  </div>
+                </div>
+              </div>
+            </>
+          )}
+
+          {/* Map Selector Modal */}
+          {showMapSelector && formData.role === 'transporter' && (
+            <MapSelector
+              isOpen={showMapSelector}
+              onClose={() => setShowMapSelector(false)}
+              onLocationSelect={(coords) => {
+                setFormData({ ...formData, transporterCoordinates: coords });
+                setShowMapSelector(false);
+              }}
+              initialCoordinates={formData.transporterCoordinates}
+            />
           )}
 
           <div className="mt-6">

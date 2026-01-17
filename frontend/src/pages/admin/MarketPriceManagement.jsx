@@ -149,12 +149,13 @@ const MarketPriceManagement = () => {
   }
 
   return (
-    <div className="space-y-6">
-      {/* Header */}
-      <div>
-        <h1 className="text-2xl font-bold text-gray-900">Market Price Management</h1>
-        <p className="text-gray-600 mt-1">Add and update wholesale and retail prices</p>
-      </div>
+    <div className="min-h-screen bg-gray-50 py-8 px-4 sm:px-6 lg:px-8">
+      <div className="max-w-7xl mx-auto space-y-6">
+        {/* Header */}
+        <div>
+          <h1 className="text-2xl font-bold text-gray-900">Market Price Management</h1>
+          <p className="text-gray-600 mt-1">Add and update wholesale and retail prices</p>
+        </div>
 
       {/* Stats Cards */}
       {stats && (
@@ -382,6 +383,7 @@ const MarketPriceManagement = () => {
           </div>
         )}
       </Card>
+      </div>
     </div>
   );
 };

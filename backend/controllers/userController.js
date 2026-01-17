@@ -39,6 +39,9 @@ const updateProfile = asyncHandler(async (req, res) => {
     user.vehicleType = req.body.vehicleType || user.vehicleType;
     user.vehicleNumber = req.body.vehicleNumber || user.vehicleNumber;
     user.licenseNumber = req.body.licenseNumber || user.licenseNumber;
+    if (req.body.baseLocation) {
+      user.baseLocation = req.body.baseLocation;
+    }
   }
 
   // Update password if provided
@@ -60,7 +63,8 @@ const updateProfile = asyncHandler(async (req, res) => {
       farmLocation: updatedUser.farmLocation,
       vehicleType: updatedUser.vehicleType,
       vehicleNumber: updatedUser.vehicleNumber,
-      licenseNumber: updatedUser.licenseNumber
+      licenseNumber: updatedUser.licenseNumber,
+      baseLocation: updatedUser.baseLocation
     }
   });
 });

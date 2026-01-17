@@ -141,6 +141,17 @@ const productSchema = new mongoose.Schema({
   viewCount: {
     type: Number,
     default: 0
+  },
+  // Review statistics
+  averageRating: {
+    type: Number,
+    default: 0,
+    min: 0,
+    max: 5
+  },
+  reviewCount: {
+    type: Number,
+    default: 0
   }
 }, {
   timestamps: true

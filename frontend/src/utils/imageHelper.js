@@ -2,6 +2,8 @@ const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
 // Extract base URL without /api
 const BASE_URL = API_URL.replace('/api', '');
 
+console.log('🌐 Image Helper initialized:', { API_URL, BASE_URL });
+
 /**
  * Get full image URL from relative path
  * @param {string} imagePath - Relative image path (e.g., /uploads/products/image.jpg)

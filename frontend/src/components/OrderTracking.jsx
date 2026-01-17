@@ -96,7 +96,14 @@ const OrderTracking = ({
   };
 
   const getHistoryForStatus = (status) => {
-    return statusHistory.find(h => h.status === status);
+    const history = statusHistory.find(h => h.status === status);
+    if (history && history.photo) {
+      console.log(`📸 History photo for ${status}:`, {
+        photo: history.photo,
+        constructedUrl: getImageUrl(history.photo)
+      });
+    }
+    return history;
   };
 
   if (compact) {
@@ -233,8 +240,26 @@ const OrderTracking = ({
                       src={getImageUrl(history.photo)} 
                       alt={`${step.label} photo`}
                       className="w-32 h-32 object-cover rounded-lg border border-gray-200 shadow-sm"
+                      onLoad={(e) => {
+                        e.target.dataset.loaded = 'true';
+                        console.log('✅ Photo loaded successfully:', {
+                          src: e.target.src,
+                          photoPath: history.photo,
+                          constructedUrl: getImageUrl(history.photo)
+                        });
+                      }}
                       onError={(e) => {
-                        console.error('Photo load error:', e.target.src);
+                        // Don't show error if image already loaded successfully
+                        if (e.target.dataset.loaded === 'true') {
+                          console.log('⚠️ Photo error after load (ignoring)');
+                          return;
+                        }
+                        console.error('❌ Photo failed to load:', {
+                          originalSrc: e.target.src,
+                          photoPath: history.photo,
+                          constructedUrl: getImageUrl(history.photo),
+                          errorType: e.type
+                        });
                         e.target.src = 'data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" width="128" height="128"><rect fill="%23f3f4f6"/><text x="50%" y="50%" text-anchor="middle" dy=".3em" fill="%239ca3af" font-size="12">Photo unavailable</text></svg>';
                       }}
                     />

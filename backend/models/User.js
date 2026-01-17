@@ -54,7 +54,7 @@ const userSchema = new mongoose.Schema({
   // Transporter-specific fields
   vehicleType: {
     type: String,
-    enum: ['truck', 'van', 'motorbike', 'other']
+    enum: ['truck', 'van', 'pickup', 'motorbike', 'other']
   },
   vehicleNumber: {
     type: String,
@@ -64,6 +64,63 @@ const userSchema = new mongoose.Schema({
   licenseNumber: {
     type: String,
     trim: true
+  },
+  // Transporter's base/home location for proximity-based job filtering
+  baseLocation: {
+    village: { type: String, trim: true },
+    thana: { type: String, trim: true },
+    district: { type: String, trim: true },
+    coordinates: {
+      lat: { type: Number },
+      lng: { type: Number }
+    }
+  },
+  // Enhanced transporter profile
+  transporterProfile: {
+    vehicleTypes: [{
+      type: String,
+      enum: ['van', 'pickup', 'truck'],
+    }],
+    vehicleCapacity: {
+      type: String,
+    },
+    vehiclePhotos: [{
+      type: String,
+    }],
+    isAvailable: {
+      type: Boolean,
+      default: true,
+    },
+    serviceDistricts: [{
+      type: String,
+    }],
+    maxServiceRadius: {
+      type: Number,
+      default: 50 // Default 50km radius
+    }
+  },
+  
+  // Stripe Payment Integration
+  stripeCustomerId: {
+    type: String,
+    sparse: true,
+  },
+  stripeConnectAccountId: {
+    type: String,
+    sparse: true,
+  },
+  stripeOnboardingComplete: {
+    type: Boolean,
+    default: false,
+  },
+  
+  // Bank details for manual payouts (backup)
+  bankDetails: {
+    accountHolder: { type: String },
+    bankName: { type: String },
+    accountNumber: { type: String },
+    branchName: { type: String },
+    routingNumber: { type: String },
   },
   // Buyer-specific fields
   deliveryAddresses: [{

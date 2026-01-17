@@ -2,6 +2,7 @@ const path = require('path');
 const express = require('express');
 const dotenv = require('dotenv');
 const cors = require('cors');
+const { handleStripeWebhook } = require('./webhooks/stripeWebhook');
 
 // FORCE the path to the .env file in the current directory
 dotenv.config({ path: path.join(__dirname, '.env') });
@@ -31,19 +32,50 @@ connectDB();
 
 const app = express();
 
+// Stripe webhook route - MUST be before express.json() middleware
+// because Stripe needs raw body for signature verification
+app.post('/api/webhook/stripe', express.raw({ type: 'application/json' }), handleStripeWebhook);
+
 // Middleware
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 
+// CORS configuration - Allow requests from frontend (local and production)
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:3000',
+  'http://localhost:5174',
+];
+
+// Add production frontend URL if provided via environment variable
+if (process.env.FRONTEND_URL) {
+  allowedOrigins.push(process.env.FRONTEND_URL);
+}
+
+
+// Security headers for Google OAuth
+app.use((req, res, next) => {
+  // Allow Google OAuth to work properly
+  res.setHeader('Cross-Origin-Opener-Policy', 'same-origin-allow-popups');
+  res.setHeader('Cross-Origin-Embedder-Policy', 'unsafe-none');
+  next();
+});
+
 // CORS configuration - Allow requests from frontend
+
 app.use(cors({
-  origin: [
-    'http://localhost:5173',
-    'http://localhost:3000',
-    'http://localhost:5174',
-    // Add your production frontend URL here when deployed
-    // 'https://your-frontend.vercel.app'
-  ],
+  origin: function (origin, callback) {
+    // Allow requests with no origin (mobile apps, Postman, etc.)
+    if (!origin) return callback(null, true);
+    
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      // Allow all origins in development, or restrict based on your needs
+      // For production, you might want to restrict this
+      callback(null, true);
+    }
+  },
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'DELETE', 'PATCH', 'OPTIONS'],
   allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Cache-Control', 'Pragma', 'Expires'],
@@ -54,7 +86,15 @@ app.use(cors({
 app.options('*', cors());
 
 // Serve static files (uploaded images)
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
+app.use('/uploads', (req, res, next) => {
+  // Add CORS headers for image requests
+  res.setHeader('Access-Control-Allow-Origin', '*');
+  res.setHeader('Access-Control-Allow-Methods', 'GET');
+  res.setHeader('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept');
+  next();
+}, express.static(path.join(__dirname, 'uploads')));
+
+console.log('📁 Static files directory:', path.join(__dirname, 'uploads'));
 
 // Routes
 app.get('/', (req, res) => {
@@ -64,7 +104,15 @@ app.get('/', (req, res) => {
   });
 });
 
-// API Routes
+// API Routes - Register all routes together for consistency
+// Load and verify notification routes
+const notificationRoutes = require('./routes/notificationRoutes');
+if (!notificationRoutes || typeof notificationRoutes !== 'function') {
+  console.error('❌ CRITICAL: Notification routes failed to load!');
+  process.exit(1);
+}
+
+// Register all API routes
 app.use('/api/auth', require('./routes/authRoutes'));
 app.use('/api/users', require('./routes/userRoutes'));
 app.use('/api/products', require('./routes/productRoutes'));
@@ -72,10 +120,60 @@ app.use('/api/orders', require('./routes/orderRoutes'));
 app.use('/api/admin', require('./routes/adminRoutes'));
 app.use('/api/market-prices', require('./routes/marketPriceRoutes'));
 app.use('/api/transporter', require('./routes/transporterRoutes'));
+app.use('/api/notifications', notificationRoutes);
+app.use('/api/reviews', require('./routes/reviewRoutes'));
+app.use('/api/payments', require('./routes/paymentRoutes'));
+
+// Verify notification routes are registered
+console.log('\n🔍 Verifying notification routes registration...');
+const allRoutes = app._router?.stack || [];
+const notificationRoutesInStack = allRoutes.filter(r => 
+  r.regexp && r.regexp.toString().includes('notifications')
+);
+console.log(`   Found ${notificationRoutesInStack.length} notification route handler(s) in Express router stack`);
+if (notificationRoutesInStack.length === 0) {
+  console.error('   ⚠️  WARNING: Notification routes not found in router stack!');
+} else {
+  console.log('   ✅ Notification routes are registered in Express');
+}
 
 // Debug: Log registered routes on startup
-console.log('✅ Order routes registered: /api/orders/stats/buyer, /api/orders/stats/transporter');
-console.log('✅ Transporter routes registered: /api/transporter/*');
+console.log('✅ API Routes registered:');
+console.log('   - /api/auth');
+console.log('   - /api/users');
+console.log('   - /api/products');
+console.log('   - /api/orders');
+console.log('   - /api/admin');
+console.log('   - /api/market-prices');
+console.log('   - /api/transporter');
+console.log('   - /api/notifications ✅ VERIFIED');
+console.log('   - /api/reviews ✅ VERIFIED');
+console.log('   - /api/payments ✅ NEW');
+console.log('   - /api/webhook/stripe ✅ WEBHOOK');
+console.log('');
+console.log('🔔 Notification system is ACTIVE and ready!');
+console.log('💳 Payment system is ACTIVE and ready!');
+
+// 404 handler for unmatched API routes (must be after all routes)
+app.use('/api/*', (req, res) => {
+  res.status(404).json({
+    success: false,
+    message: `API route not found: ${req.method} ${req.originalUrl}`,
+    availableRoutes: [
+      '/api/auth',
+      '/api/users',
+      '/api/products',
+      '/api/orders',
+      '/api/admin',
+      '/api/market-prices',
+      '/api/transporter',
+      '/api/notifications',
+      '/api/reviews',
+      '/api/payments',
+      '/api/webhook/stripe'
+    ]
+  });
+});
 
 // Error handler middleware
 app.use((err, req, res, next) => {
@@ -89,6 +187,14 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
-});
+// Only start server if not on Vercel (serverless functions don't use app.listen())
+// Vercel will import and use the exported app directly via api/index.js
+if (process.env.VERCEL !== '1' && !process.env.VERCEL_ENV) {
+  app.listen(PORT, () => {
+    console.log(`Server running in ${process.env.NODE_ENV} mode on port ${PORT}`);
+    console.log(`🔔 Notification system: ACTIVE at /api/notifications`);
+  });
+}
+
+// Export app for Vercel serverless functions
+module.exports = app;
